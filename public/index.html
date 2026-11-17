@@ -1,0 +1,722 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <script>
+    (function () {
+      try {
+        var c = localStorage.getItem('color-scheme') || 'light dark';
+        document.querySelector('meta[name="color-scheme"]').setAttribute('content', c);
+        var dark = c === 'dark' || (c === 'light dark' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+        document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+      } catch (e) {}
+    })();
+  </script>
+  <title>Bin4ry - Relay</title>
+  <link rel="stylesheet" href="/css/theme.css">
+  <link rel="stylesheet" href="/css/relay.css">
+</head>
+<body>
+  <header class="site-header">
+    <a class="site-header__brand" href="/V3/">
+      <span class="site-header__logo" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+          <path d="M13 2L4 14h7l-1 8 9-12h-7l1-8z"/>
+        </svg>
+      </span>
+      <span>Bin4ry - Relay</span>
+    </a>
+
+    <nav class="site-nav" aria-label="Primary">
+      <a class="nav-pill is-active" href="/V3/" aria-current="page">RELAY</a>
+
+      <div class="gmass-pop-wrap">
+        <button type="button" id="gmass2NavBtn" class="nav-pill">GMASS-2</button>
+        <div id="gmass2Popover" class="relay-popover gmass-popover" popover="auto" aria-label="Open GMASS-2 options">
+          <div class="gmass-popover__head">Open GMASS-2</div>
+          <button type="button" id="gmass2OpenHere" class="gmass-popover__btn">
+            <span>Pop-up here</span>
+            <kbd>Alt+Shift+G</kbd>
+          </button>
+          <a href="/gmass2" class="gmass-popover__btn">
+            <span>New tab full page</span>
+            <span aria-hidden="true">↗</span>
+          </a>
+          <label class="gmass-popover__check">
+            <input type="checkbox" id="gmass2Remember">
+            <span>Remember my choice</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="gmass-pop-wrap">
+        <button type="button" id="gmass4NavBtn" class="nav-pill nav-pill--fast">
+          <span>GMASS-4</span>
+          <span class="fast-badge">FASTEST GMASS</span>
+        </button>
+        <div id="gmass4Popover" class="relay-popover gmass-popover" popover="auto" aria-label="Open GMASS-4 options">
+          <div class="gmass-popover__head">Open GMASS-4</div>
+          <button type="button" id="gmass4OpenHere" class="gmass-popover__btn">
+            <span>Pop-up here</span>
+            <kbd>Alt+Shift+4</kbd>
+          </button>
+          <a href="/gmass4" class="gmass-popover__btn">
+            <span>New tab full page</span>
+            <span aria-hidden="true">↗</span>
+          </a>
+          <label class="gmass-popover__check">
+            <input type="checkbox" id="gmass4Remember">
+            <span>Remember my choice</span>
+          </label>
+        </div>
+      </div>
+
+      <a class="nav-pill" href="/V3/tags/">TAGS</a>
+      <a class="nav-pill" href="/V3/files/">FILES</a>
+      <button type="button" id="downloadExtNavBtn" class="nav-pill nav-pill--download" title="Download Chrome Extension & instructions">
+        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="7 10 12 15 17 10"/>
+          <line x1="12" y1="15" x2="12" y2="3"/>
+        </svg>
+        <span>EXTENSION</span>
+      </button>
+      <a class="nav-pill nav-pill--danger" href="/logout">LOGOUT</a>
+    </nav>
+
+    <div class="site-header__utils">
+      <button type="button" id="downloadExtBtn" class="ext-download-btn" aria-haspopup="dialog" aria-expanded="false" title="Download Chrome Extension & instructions to load in browser">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="7 10 12 15 17 10"/>
+          <line x1="12" y1="15" x2="12" y2="3"/>
+        </svg>
+        <span>Download Extension</span>
+      </button>
+
+      <button type="button" id="themeToggle" class="icon-btn" aria-label="Toggle light or dark theme" aria-pressed="false">
+        <span data-icon="moon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+          </svg>
+        </span>
+        <span data-icon="sun" aria-hidden="true" style="display:none">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="5"/>
+            <line x1="12" y1="1" x2="12" y2="3"/>
+            <line x1="12" y1="21" x2="12" y2="23"/>
+            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
+            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+            <line x1="1" y1="12" x2="3" y2="12"/>
+            <line x1="21" y1="12" x2="23" y2="12"/>
+            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
+            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+          </svg>
+        </span>
+      </button>
+
+      <button type="button" id="chatBtn" class="icon-btn" aria-label="Open Admin Messages">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+        </svg>
+        <span id="chatBadge" class="badge-dot" hidden>0</span>
+      </button>
+
+      <div class="user-pill" title="Signed-in operator">
+        <span id="userAvatar" class="user-pill__avatar" aria-hidden="true">A</span>
+        <span id="userNameLabel">admfib7H</span>
+      </div>
+    </div>
+  </header>
+
+  <h1 class="sr-only">Bin4ry Relay Mailer Control Workspace</h1>
+
+  <!-- Conversion & Attachment Sub-bar -->
+  <section id="subBar" class="sub-bar" aria-label="Attachment and format conversion controls">
+    <div class="sub-bar__left">
+      <span class="convert-badge">html →</span>
+      <label class="sr-only" for="convertFormatSelect">Select attachment conversion format</label>
+      <select id="convertFormatSelect" class="sub-select">
+        <option value="html">Select... / Remove...</option>
+        <option value="pdf">pdf</option>
+        <option value="jpeg">jpeg</option>
+        <option value="png">png</option>
+        <option value="webp">webp</option>
+        <option value="tiff">tiff</option>
+        <option value="bmp">bmp</option>
+        <option value="heic">heic</option>
+      </select>
+      <input id="convertFilename" class="sub-input convert-extra" type="text" placeholder="Filename (optional)" aria-label="Converted filename">
+      <input id="convertWatermark" class="sub-input convert-extra" type="text" placeholder="Watermark..." aria-label="PDF or image watermark">
+      <button type="button" id="previewConvertBtn" class="btn btn--sm convert-extra">Test Convert</button>
+      <button type="button" id="clearConvertBtn" class="btn btn--sm">Clear</button>
+      <button type="button" id="saveConvertBtn" class="btn btn--sm btn--primary">Save now</button>
+    </div>
+
+    <div class="sub-bar__right">
+      <span class="sync-meta" id="attachSyncMeta">
+        <span class="sync-dot" aria-hidden="true"></span>
+        <span>Synced · just now</span>
+      </span>
+      <div id="attachChips" class="attach-chips"></div>
+      <button type="button" id="attachFilesBtn" class="btn btn--sm">Attach Files</button>
+    </div>
+  </section>
+
+  <!-- Main Workspace -->
+  <main id="relayWorkspace" class="relay-workspace" data-layout="two-col">
+    <!-- Left Column: Online Tabs + Data Dock -->
+    <section class="relay-col relay-col--left">
+      <article id="tabsPanel" class="relay-panel relay-panel--tabs">
+        <div class="relay-panel-header">
+          <div class="panel-header-left">
+            <h2 class="panel-title">ONLINE TABS</h2>
+            <span class="header-badge header-badge--merged">DATA MERGED</span>
+            <span id="providerCountBadge" class="header-badge header-badge--provider">Gmail 0</span>
+            <span id="blockedCountBadge" class="header-badge header-badge--blocked" hidden>0 Blocked</span>
+          </div>
+          <div class="panel-header-actions">
+            <button type="button" id="manageAccountsBtn" class="btn btn--sm btn--primary" title="Manage Accounts &amp; Per-Account Proxies">+ Accounts</button>
+            <button type="button" id="recallTabsBtn" class="icon-btn icon-btn--sm" title="Recall from tab" aria-label="Recall from tab">↺</button>
+            <button type="button" id="refreshTabsBtn" class="icon-btn icon-btn--sm" title="Refresh online tabs" aria-label="Refresh online tabs">↻</button>
+            <button type="button" id="getFoldersAllBtn" class="icon-btn icon-btn--sm" title="Fetch Inbox/Sent/Drafts/Spam counts from every tab" aria-label="Get folders">📁</button>
+            <button type="button" id="reloadAllTabsBtn" class="icon-btn icon-btn--sm" title="Reload all tabs" aria-label="Reload all tabs">⟳</button>
+            <button type="button" id="closeAllTabsBtn" class="icon-btn icon-btn--sm" title="Close all tabs" aria-label="Close all tabs">✕</button>
+            <button type="button" class="icon-btn icon-btn--sm panel-collapse-btn" data-target="tabsPanel" aria-label="Collapse Online Tabs panel" aria-expanded="true">⌄</button>
+          </div>
+        </div>
+
+        <div class="panel-tools">
+          <div class="panel-search-row">
+            <search class="panel-search">
+              <span class="panel-search__icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                </svg>
+              </span>
+              <input id="tabSearchInput" type="search" placeholder="Filter by email..." aria-label="Filter online tabs by email">
+            </search>
+          </div>
+
+          <div class="filter-chips">
+            <button type="button" id="columnsBtn" class="chip-btn" popovertarget="columnsPopover">Columns ▾</button>
+            <div id="columnsPopover" class="relay-popover col-popover" popover="auto" aria-label="Toggle table columns">
+              <label><input type="checkbox" data-col="col-num" checked> #</label>
+              <label><input type="checkbox" data-col="col-data" checked> DATA</label>
+              <label><input type="checkbox" data-col="col-tab" checked> TAB</label>
+              <label><input type="checkbox" data-col="col-inbox" checked> INBOX</label>
+              <label><input type="checkbox" data-col="col-draft" checked> DRAFT</label>
+              <label><input type="checkbox" data-col="col-folders" checked> FOLDERS</label>
+              <label><input type="checkbox" data-col="col-status" checked> STATUS</label>
+              <label><input type="checkbox" data-col="col-ip" checked> IP / PROXY</label>
+              <label><input type="checkbox" data-col="col-actions" checked> ACTIONS</label>
+            </div>
+
+            <button type="button" class="chip-btn filter-chip" data-filter="duplicates">Duplicates (<span id="dupCountNum">0</span>)</button>
+            <button type="button" class="chip-btn filter-chip" data-filter="blocked">Blocked</button>
+            <button type="button" class="chip-btn filter-chip" data-filter="inactive">Inactive</button>
+            <button type="button" class="chip-btn filter-chip" data-filter="sent">Sent &gt; 0</button>
+          </div>
+        </div>
+
+        <div class="tab-container" tabindex="0" role="region" aria-labelledby="tabsTableCaption">
+          <table id="onlineTabsTable" class="tableContainer">
+            <caption id="tabsTableCaption" class="sr-only">Online sender browser tabs and proxy IP statuses</caption>
+            <thead>
+              <tr>
+                <th scope="col" class="col-num">#</th>
+                <th scope="col" class="col-data">DATA</th>
+                <th scope="col" class="col-email">EMAIL</th>
+                <th scope="col" class="col-tab">TAB</th>
+                <th scope="col" class="col-inbox">INBOX</th>
+                <th scope="col" class="col-draft">DRAFT</th>
+                <th scope="col" class="col-folders">FOLDERS</th>
+                <th scope="col" class="col-status">STATUS</th>
+                <th scope="col" class="col-ip">IP</th>
+                <th scope="col" class="col-actions">ACTIONS</th>
+              </tr>
+            </thead>
+            <tbody id="onlineTabsBody"></tbody>
+          </table>
+        </div>
+
+        <div class="data-dock">
+          <div class="data-dock__group">
+            <span class="data-dock__step">DATA</span>
+            <span id="dockDataCount" class="data-dock__badge">0</span>
+            <button type="button" id="openDataModalBtn" class="btn btn--sm" title="Manage recipient email data">✎</button>
+            <span class="sync-dot" aria-hidden="true"></span>
+          </div>
+          <div class="data-dock__group">
+            <span class="data-dock__step">STEP 1</span>
+            <label for="recordsPerTabInput" class="sr-only">Records per tab</label>
+            <input id="recordsPerTabInput" class="dock-num" type="number" min="1" max="500" value="5">
+            <span style="font-size:11.5px;color:var(--text-muted)">records per tab</span>
+            <button type="button" id="setDataBtn" class="btn btn--sm btn--primary">Set data</button>
+            <span id="dockEstText" class="dock-est">≈ 0/tab · 0 total (0 tabs)</span>
+            <span class="data-dock__step">→ STEP 2</span>
+            <span style="font-size:11.5px;color:var(--text-muted)">then hit SHOOT</span>
+          </div>
+        </div>
+      </article>
+    </section>
+
+    <!-- Right Column: Compose + Tags -->
+    <section class="relay-col relay-col--right">
+      <article id="composePanel" class="relay-panel relay-panel--compose">
+        <div class="relay-panel-header">
+          <div class="panel-header-left">
+            <h2 class="panel-title">COMPOSE</h2>
+            <div class="test-shoot-group">
+              <button type="button" id="openTestModalBtn" class="ts-btn ts-btn--edit" title="Edit test recipients">✎</button>
+              <button type="button" id="fireTestShootBtn" class="ts-btn">TEST</button>
+            </div>
+          </div>
+          <div class="panel-header-actions">
+            <span class="sync-meta" id="composeSyncMeta">
+              <span class="sync-dot" aria-hidden="true"></span>
+              <span>Synced</span>
+            </span>
+            <button type="button" id="aiAssistantBtn" class="ai-btn">✦ AI ASSISTANT</button>
+            <button type="button" class="icon-btn icon-btn--sm panel-collapse-btn" data-target="composePanel" aria-label="Collapse Compose panel" aria-expanded="true">⌄</button>
+          </div>
+        </div>
+
+        <div class="compose-field-row">
+          <label class="compose-field-lbl" for="composeSubject">SUBJECT</label>
+          <input id="composeSubject" class="compose-subject" type="text" placeholder="Enter email subject (supports {tags} and {spintax|options})">
+        </div>
+
+        <div class="editor-toolbar" role="toolbar" aria-label="Rich text formatting">
+          <button type="button" class="ed-tool" data-cmd="bold" aria-label="Bold"><strong>B</strong></button>
+          <button type="button" class="ed-tool" data-cmd="italic" aria-label="Italic"><em>I</em></button>
+          <button type="button" class="ed-tool" data-cmd="underline" aria-label="Underline"><u>U</u></button>
+          <button type="button" class="ed-tool" data-cmd="strikeThrough" aria-label="Strikethrough"><s>S</s></button>
+          <button type="button" class="ed-tool" data-cmd="superscript" aria-label="Superscript">x²</button>
+          <button type="button" class="ed-tool" data-cmd="subscript" aria-label="Subscript">x₂</button>
+          <button type="button" class="ed-tool" data-cmd="insertUnorderedList" aria-label="Bulleted list">•</button>
+          <button type="button" class="ed-tool" data-cmd="insertOrderedList" aria-label="Numbered list">1.</button>
+          <button type="button" class="ed-tool" data-cmd="justifyLeft" aria-label="Align left">Left</button>
+          <button type="button" class="ed-tool" data-cmd="justifyCenter" aria-label="Align center">Center</button>
+          <button type="button" class="ed-tool" data-cmd="justifyRight" aria-label="Align right">Right</button>
+          <button type="button" class="ed-tool" data-cmd="insertHorizontalRule" aria-label="Horizontal rule">―</button>
+          <button type="button" id="insertLinkBtn" class="ed-tool" aria-label="Insert link">Link</button>
+          <button type="button" class="ed-tool" data-cmd="removeFormat" aria-label="Clear formatting">Clear</button>
+          <button type="button" id="toggleSourceBtn" class="ed-tool" style="margin-left:auto" aria-pressed="false">&lt;/&gt; HTML</button>
+        </div>
+
+        <div class="compose-canvas-wrap">
+          <div id="composeEditor" class="compose-wysiwyg" contenteditable="true" aria-label="Email body editor" role="textbox" aria-multiline="true"></div>
+          <textarea id="composeSource" class="compose-source" aria-label="Raw HTML body source" hidden></textarea>
+        </div>
+
+        <div class="compose-counts">
+          <span>CHARS: <strong id="charCount">0</strong></span>
+          <span>WORDS: <strong id="wordCount">0</strong></span>
+        </div>
+
+        <div class="tags-bar">
+          <div class="tags-bar__head">
+            <span class="tags-bar__title">TAGS (Hover to preview, click to insert)</span>
+            <div style="display:flex;gap:6px;align-items:center">
+              <button type="button" id="quickAddTagBtn" class="btn btn--sm" popovertarget="quickTagPopover">+ New Tag</button>
+              <a href="/V3/tags/" class="btn btn--sm" title="Manage Custom Tags">⚙ Manage</a>
+            </div>
+          </div>
+          <div id="tagsChipsList" class="tags-bar__chips"></div>
+        </div>
+      </article>
+    </section>
+  </main>
+
+  <!-- Floating Tag Preview Popover Card -->
+  <div id="tagPreviewCard" class="tag-preview-card" hidden>
+    <div id="tpcCat" class="tag-preview-card__cat">IDENTITY</div>
+    <div id="tpcKey" class="tag-preview-card__key">{name}</div>
+    <div id="tpcDesc" class="tag-preview-card__desc">Random full name</div>
+    <div id="tpcEx" class="tag-preview-card__ex">Example: Jane Doe</div>
+  </div>
+
+  <!-- Quick Add Tag Popover -->
+  <div id="quickTagPopover" class="relay-popover" popover="auto" style="width:300px" aria-label="Quick create custom tag">
+    <form id="composeTagsPopoverForm" style="display:flex;flex-direction:column;gap:8px">
+      <strong style="font-size:12px">Quick Custom Tag</strong>
+      <input id="ctpName" class="field-input" type="text" placeholder="Tag name (e.g. promo)" required>
+      <textarea id="ctpValues" class="field-textarea" rows="3" placeholder="Values (one per line or comma)" required></textarea>
+      <label style="display:flex;align-items:center;gap:6px;font-size:12px">
+        <input id="ctpRandom" type="checkbox" checked> Random pick per email
+      </label>
+      <div style="display:flex;gap:6px;justify-content:flex-end">
+        <button type="submit" id="ctpSubmit" class="btn btn--sm btn--primary">Save Tag</button>
+      </div>
+    </form>
+  </div>
+
+  <!-- Bottom Action Bar -->
+  <footer class="relay-action-bar">
+    <div class="relay-action-bar__group">
+      <div id="actionStatusChip" class="action-status-chip">
+        <span class="action-status-chip__dot" aria-hidden="true"></span>
+        <span id="actionStatusText">Waiting for tabs...</span>
+      </div>
+      <div class="metric-chip">UPDATED <strong id="metricUpdated">Just now</strong></div>
+      <div class="metric-chip">LIMIT <strong id="metricLimit">60000</strong></div>
+      <div class="metric-chip">SENT TODAY <strong id="metricSent">0</strong></div>
+      <div class="metric-chip">EXPIRY <strong id="metricExpiry">3 hours left</strong></div>
+    </div>
+
+    <div class="relay-action-bar__group">
+      <button type="button" id="abortShootBtn" class="btn btn--danger" hidden>Abort</button>
+      <button type="button" id="settingsGearBtn" class="settings-btn" popovertarget="setting-model" aria-label="Open Shoot Settings">⚙</button>
+      <button type="button" id="sendButton" class="sendButton" aria-label="Start email shoot">
+        <span class="submitx">SHOOT</span>
+        <span class="loading" aria-hidden="true">⟳</span>
+        <span class="check" aria-hidden="true">✓</span>
+      </button>
+    </div>
+  </footer>
+
+  <!-- SHOOT SETTINGS Popover -->
+  <div id="setting-model" class="relay-popover settings-popover" popover="auto" aria-label="Shoot Settings">
+    <div class="settings-popover__head">
+      <span>SHOOT SETTINGS</span>
+    </div>
+    <div class="settings-popover__body">
+      <div class="setting-section">
+        <div class="setting-section__title">TIMING (DELAY PER MESSAGE)</div>
+        <div class="slider-row">
+          <div class="slider-row__label"><span>Gmail</span><span id="gmailDelayVal">3s</span></div>
+          <input id="gmailDelaySlider" type="range" min="1" max="30" value="3">
+        </div>
+        <div class="slider-row">
+          <div class="slider-row__label"><span>Yahoo</span><span id="yahooDelayVal">5s</span></div>
+          <input id="yahooDelaySlider" type="range" min="1" max="30" value="5">
+        </div>
+        <div class="slider-row" style="margin-bottom:0">
+          <div class="slider-row__label"><span>Outlook</span><span id="outlookDelayVal">5s</span></div>
+          <input id="outlookDelaySlider" type="range" min="1" max="30" value="5">
+        </div>
+      </div>
+
+      <div class="setting-section">
+        <div class="setting-section__title">LAYOUT</div>
+        <div class="layout-radios">
+          <label class="layout-radio"><input type="radio" name="layoutMode" value="two-col" checked> Two cols</label>
+          <label class="layout-radio"><input type="radio" name="layoutMode" value="one-col"> One col</label>
+          <label class="layout-radio"><input type="radio" name="layoutMode" value="reversed"> Reversed</label>
+        </div>
+      </div>
+
+      <div class="setting-section" style="margin-bottom:0">
+        <div class="setting-section__title">BEHAVIOUR</div>
+        <label style="display:flex;align-items:center;justify-content:space-between;font-size:12px;cursor:pointer">
+          <span>Force Start (include blocked / ignore limit)</span>
+          <input id="forceStartCheck" type="checkbox">
+        </label>
+      </div>
+    </div>
+  </div>
+
+  <!-- NATIVE DIALOGS -->
+  <dialog id="dataDialog" class="relay-dialog" closedby="any" aria-labelledby="dataDialogTitle">
+    <div class="dialog-head">
+      <h2 id="dataDialogTitle" class="dialog-title">Manage Recipient Data (<span id="modalDataCount">0</span>)</h2>
+      <button type="button" id="dataDialogClose" class="dialog-close" aria-label="Close">×</button>
+    </div>
+    <div class="dialog-body">
+      <label for="addData" style="font-size:12px;font-weight:700">Paste recipient emails (one per line or comma-separated)</label>
+      <textarea id="addData" class="field-textarea" rows="6" placeholder="recipient1@example.com&#10;recipient2@example.com"></textarea>
+      <div style="display:flex;gap:8px">
+        <button type="button" id="saveDataBtn" class="btn btn--primary">Add Data</button>
+        <button type="button" id="eraseDataBtn" class="btn btn--danger">Clear All Server Data</button>
+      </div>
+      <label for="loadedData" style="font-size:12px;font-weight:700">Currently Loaded Data Pool</label>
+      <textarea id="loadedData" class="field-textarea" rows="5" readonly></textarea>
+    </div>
+  </dialog>
+
+  <dialog id="testDialog" class="relay-dialog" closedby="any" aria-labelledby="testDialogTitle">
+    <div class="dialog-head">
+      <h2 id="testDialogTitle" class="dialog-title">Test shoot</h2>
+      <button type="button" id="testDialogClose" class="dialog-close" aria-label="Close">×</button>
+    </div>
+    <div class="dialog-body">
+      <label for="newTestEmails" style="font-size:11px;font-weight:800;letter-spacing:0.05em;color:var(--text-muted)">ADD TEST RECIPIENTS — ONE PER LINE</label>
+      <textarea id="newTestEmails" class="field-textarea" rows="3" placeholder="email1@domain.com&#10;email2@domain.com" autofocus></textarea>
+      <div style="display:flex;justify-content:flex-end">
+        <button type="button" id="addTestRecipientBtn" class="btn btn--sm btn--primary">+ Add</button>
+      </div>
+      <div style="font-size:11px;font-weight:800;letter-spacing:0.05em;color:var(--text-muted);margin-top:4px">SAVED RECIPIENTS (<span id="testSavedCount">0</span>)</div>
+      <div id="testRecipientsList" style="display:flex;flex-direction:column;gap:6px;max-height:180px;overflow:auto"></div>
+      <div style="font-size:11.5px;color:var(--text-muted);padding-top:6px;border-top:1px solid var(--border)">
+        Sending tests sends the current Compose subject &amp; body with all tags processed. Press <strong>Ctrl+Shift+T</strong> anywhere to run.
+      </div>
+    </div>
+    <div class="dialog-foot">
+      <button type="button" id="fireTestFromModalBtn" class="btn btn--warning">Send Test Now</button>
+    </div>
+  </dialog>
+
+  <dialog id="accountsDialog" class="relay-dialog relay-dialog--wide" closedby="any" aria-labelledby="accountsDialogTitle">
+    <div class="dialog-head">
+      <h2 id="accountsDialogTitle" class="dialog-title">Accounts &amp; Per-Account Proxy Manager</h2>
+      <button type="button" id="accountsDialogClose" class="dialog-close" aria-label="Close">×</button>
+    </div>
+    <div class="dialog-body">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div style="display:flex;flex-direction:column;gap:8px;padding:12px;border:1px solid var(--border);border-radius:10px;background:var(--surface-alt)">
+          <strong style="font-size:12px">Add Single Account + Proxy</strong>
+          <input id="accEmailInput" class="field-input" type="email" placeholder="sender@gmail.com">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+            <input id="accPassInput" class="field-input" type="text" placeholder="Password">
+            <input id="accRecoveryInput" class="field-input" type="email" placeholder="Recovery email">
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+            <input id="accTwoFaInput" class="field-input" type="text" placeholder="2FA Secret (Base32)">
+            <select id="accProviderSelect" class="field-select">
+              <option value="gmail">Gmail</option>
+              <option value="outlook">Outlook</option>
+              <option value="yahoo">Yahoo</option>
+            </select>
+          </div>
+          <div style="display:flex;gap:6px">
+            <input id="accProxyInput" class="field-input" type="text" placeholder="Proxy: socks5://user:pass@ip:port or host:port">
+            <button type="button" id="probeProxyBtn" class="btn btn--sm">Test IP</button>
+          </div>
+          <div id="proxyProbeResult" style="font-size:11.5px;color:var(--text-muted)"></div>
+          <button type="button" id="saveAccountBtn" class="btn btn--primary">Save Account</button>
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:8px;padding:12px;border:1px solid var(--border);border-radius:10px;background:var(--surface-alt)">
+          <strong style="font-size:12px">Bulk Import (Email Pass [Recovery] [2FA] [Proxy])</strong>
+          <textarea id="bulkAccountsInput" class="field-textarea" rows="5" placeholder="user1@gmail.com Pass123 rec@mail.com JBSWY3DPEHPK3PXP socks5://u:p@1.2.3.4:1080"></textarea>
+          <input id="bulkDefaultProxyInput" class="field-input" type="text" placeholder="Optional default proxy if line omits proxy">
+          <button type="button" id="importBulkBtn" class="btn btn--primary">Import Accounts</button>
+        </div>
+      </div>
+
+      <div style="overflow:auto;max-height:260px;border:1px solid var(--border);border-radius:10px">
+        <table class="tableContainer">
+          <caption class="sr-only">Configured accounts and isolated proxy assignments</caption>
+          <thead>
+            <tr>
+              <th scope="col">Account</th>
+              <th scope="col">Provider</th>
+              <th scope="col">Proxy</th>
+              <th scope="col">Verified IP</th>
+              <th scope="col">Controls</th>
+            </tr>
+          </thead>
+          <tbody id="accountsTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="aiDialog" class="relay-dialog" closedby="any" aria-labelledby="aiDialogTitle">
+    <div class="dialog-head">
+      <h2 id="aiDialogTitle" class="dialog-title">✦ AI Email Assistant</h2>
+      <button type="button" id="aiDialogClose" class="dialog-close" aria-label="Close">×</button>
+    </div>
+    <div class="dialog-body">
+      <label for="aiPromptInput" style="font-size:12px;font-weight:700">Describe the email template or spintax campaign you want to generate</label>
+      <textarea id="aiPromptInput" class="field-textarea" rows="4" placeholder="e.g. Polite invoice renewal reminder mentioning {productname}, {orderno}, and {grandtotal}"></textarea>
+      <div style="display:flex;gap:8px">
+        <button type="button" id="generateAiBtn" class="btn btn--primary">Generate Copy</button>
+      </div>
+      <div id="aiPreviewBox" style="padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--surface-alt);font-size:12.5px" hidden>
+        <div style="font-weight:700;margin-bottom:6px">Generated Subject: <span id="aiGeneratedSubj"></span></div>
+        <div id="aiGeneratedHtml" style="background:#fff;color:#1e293b;padding:10px;border-radius:6px;max-height:200px;overflow:auto"></div>
+        <button type="button" id="applyAiBtn" class="btn btn--success btn--sm" style="margin-top:8px">Apply to Compose</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="attachDialog" class="relay-dialog" closedby="any" aria-labelledby="attachDialogTitle">
+    <div class="dialog-head">
+      <h2 id="attachDialogTitle" class="dialog-title">Attach Files to Shoot</h2>
+      <button type="button" id="attachDialogClose" class="dialog-close" aria-label="Close">×</button>
+    </div>
+    <div class="dialog-body">
+      <div style="display:flex;gap:8px;align-items:center">
+        <input id="fileUploadInput" type="file" class="field-input">
+        <button type="button" id="uploadFileBtn" class="btn btn--primary">Upload</button>
+      </div>
+      <div id="attachFilesList" style="display:flex;flex-direction:column;gap:6px"></div>
+    </div>
+  </dialog>
+
+  <dialog id="chatDialog" class="relay-dialog" closedby="any" aria-labelledby="chatDialogTitle">
+    <div class="dialog-head">
+      <h2 id="chatDialogTitle" class="dialog-title">Admin Messages</h2>
+      <button type="button" id="chatCloseBtn" class="dialog-close" aria-label="Close">×</button>
+    </div>
+    <div class="dialog-body">
+      <div id="chatMessagesList" style="display:flex;flex-direction:column;gap:8px;max-height:280px;overflow:auto"></div>
+      <form id="chatForm" style="display:flex;gap:8px">
+        <input id="chatInput" class="field-input" type="text" placeholder="Write a message or operator note...">
+        <button type="submit" class="btn btn--primary">Send</button>
+      </form>
+    </div>
+  </dialog>
+
+  <dialog id="gmassModal" class="relay-dialog relay-dialog--wide" closedby="any" aria-labelledby="gmassModalTitle">
+    <div class="dialog-head">
+      <h2 id="gmassModalTitle" class="dialog-title">GMASS Blaster</h2>
+      <button type="button" id="gmassModalClose" class="dialog-close" aria-label="Close">×</button>
+    </div>
+    <div class="dialog-body" style="padding:0;height:75vh">
+      <iframe id="gmassModalFrame" title="GMASS Embedded Workspace" style="border:0;width:100%;height:100%"></iframe>
+    </div>
+  </dialog>
+
+  <dialog id="confirmDialog" class="relay-dialog relay-dialog--sm" closedby="any" aria-labelledby="confirmDialogTitle">
+    <div class="dialog-head">
+      <h2 id="confirmDialogTitle" class="dialog-title">Confirm Action</h2>
+      <button type="button" id="confirmDialogClose" class="dialog-close" aria-label="Close">×</button>
+    </div>
+    <form method="dialog" class="dialog-body">
+      <p id="confirmDialogMsg" style="margin:0 0 12px;font-size:13px;line-height:1.5;color:var(--text-main)"></p>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button type="submit" id="confirmNoBtn" value="no" class="btn" autofocus>No</button>
+        <button type="submit" id="confirmYesBtn" value="yes" class="btn btn--primary">Yes</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="linkDialog" class="relay-dialog relay-dialog--sm" closedby="any" aria-labelledby="linkDialogTitle">
+    <div class="dialog-head">
+      <h2 id="linkDialogTitle" class="dialog-title">Insert Hyperlink</h2>
+      <button type="button" id="linkDialogClose" class="dialog-close" aria-label="Close">×</button>
+    </div>
+    <form id="linkDialogForm" class="dialog-body">
+      <label for="linkUrlInput" style="font-size:12px;font-weight:700">Target URL</label>
+      <input id="linkUrlInput" class="field-input" type="url" value="https://" placeholder="https://example.com" required autofocus>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px">
+        <button type="button" id="linkCancelBtn" class="btn">Cancel</button>
+        <button type="submit" class="btn btn--primary">Insert Link</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Extension Download & Chrome Installation Modal Dialog -->
+  <dialog id="downloadExtDialog" class="relay-dialog relay-dialog--wide" closedby="any" aria-labelledby="downloadExtDialogTitle">
+    <div class="dialog-head">
+      <h2 id="downloadExtDialogTitle" class="dialog-title">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" style="color:var(--primary)">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="7 10 12 15 17 10"/>
+          <line x1="12" y1="15" x2="12" y2="3"/>
+        </svg>
+        <span>Download Extension & Load in Chrome</span>
+      </h2>
+      <button type="button" id="downloadExtClose" class="dialog-close" aria-label="Close dialog">×</button>
+    </div>
+
+    <div class="dialog-body ext-modal-body">
+      <!-- Top banner / quick download action -->
+      <div class="ext-download-banner">
+        <div class="ext-banner-info">
+          <div class="ext-banner-title">
+            <span>Bin4ry Relay Controller Extension</span>
+            <span class="ext-version-tag">v4.1.0</span>
+          </div>
+          <div class="ext-banner-sub">Manifest V3 RPA agent for multi-account webmail automation, proxy isolation, and controller sync.</div>
+        </div>
+        <a href="/api/download-extension" id="downloadExtDirectBtn" class="btn btn--primary ext-action-btn" download="bin4ry-relay-extension.zip" autofocus>
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="7 10 12 15 17 10"/>
+            <line x1="12" y1="15" x2="12" y2="3"/>
+          </svg>
+          <span>Download .ZIP Extension</span>
+        </a>
+      </div>
+
+      <!-- Installation Guide Title -->
+      <div class="ext-guide-heading">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <circle cx="12" cy="12" r="10"/>
+          <line x1="12" y1="16" x2="12" y2="12"/>
+          <line x1="12" y1="8" x2="12.01" y2="8"/>
+        </svg>
+        <h3>How to Load the Extension in Google Chrome</h3>
+      </div>
+
+      <!-- Step-by-step instructions -->
+      <ol class="ext-steps-list">
+        <li class="ext-step-item">
+          <div class="ext-step-badge">1</div>
+          <div class="ext-step-content">
+            <strong>Download and extract the ZIP archive</strong>
+            <p>Click the <em>Download .ZIP Extension</em> button above. Once downloaded, extract <code>bin4ry-relay-extension.zip</code> to a permanent folder on your computer.</p>
+          </div>
+        </li>
+
+        <li class="ext-step-item">
+          <div class="ext-step-badge">2</div>
+          <div class="ext-step-content">
+            <strong>Open the Chrome Extensions management page</strong>
+            <p>Open a new tab in Google Chrome, navigate to <code>chrome://extensions</code> in your address bar, and press <kbd>Enter</kbd>.</p>
+            <div class="ext-copy-bar">
+              <code id="chromeExtUrlText">chrome://extensions</code>
+              <button type="button" id="copyExtUrlBtn" class="btn btn--sm ext-copy-btn" title="Copy URL to clipboard">
+                <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                </svg>
+                <span id="copyExtUrlLabel">Copy URL</span>
+              </button>
+            </div>
+          </div>
+        </li>
+
+        <li class="ext-step-item">
+          <div class="ext-step-badge">3</div>
+          <div class="ext-step-content">
+            <strong>Turn ON "Developer mode"</strong>
+            <p>Locate the <strong>Developer mode</strong> toggle switch in the top-right corner of the Extensions page and toggle it ON.</p>
+          </div>
+        </li>
+
+        <li class="ext-step-item">
+          <div class="ext-step-badge">4</div>
+          <div class="ext-step-content">
+            <strong>Click "Load unpacked" and select the unzipped folder</strong>
+            <p>Click the <strong>Load unpacked</strong> button in the top-left toolbar. In the file picker, select the extracted extension folder (the folder containing <code>manifest.json</code>).</p>
+          </div>
+        </li>
+
+        <li class="ext-step-item">
+          <div class="ext-step-badge">5</div>
+          <div class="ext-step-content">
+            <strong>Pin and verify the extension</strong>
+            <p>Click the Extensions icon (<span aria-hidden="true">🧩</span>) in the Chrome toolbar and pin <strong>Bin4ry Relay Controller</strong>. Open its popup to verify the WebSocket hub is connected.</p>
+          </div>
+        </li>
+      </ol>
+    </div>
+
+    <div class="dialog-foot">
+      <button type="button" id="downloadExtDismissBtn" class="btn">Close</button>
+      <a href="/api/download-extension" class="btn btn--primary" download="bin4ry-relay-extension.zip">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="7 10 12 15 17 10"/>
+          <line x1="12" y1="15" x2="12" y2="3"/>
+        </svg>
+        <span>Download .ZIP</span>
+      </a>
+    </div>
+  </dialog>
+
+  <!-- Dedicated Accessible Live Regions -->
+  <div id="toastRegion" class="toast-region" role="region" aria-label="Notifications" aria-live="polite" aria-atomic="false"></div>
+  <div id="alertRegion" class="sr-only" aria-live="assertive" aria-atomic="true"></div>
+
+  <script src="/js/common.js" defer></script>
+  <script src="/js/relay.js" defer></script>
+</body>
+</html>

@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>Sign in · Bin4ry Relay</title>
+  <link rel="stylesheet" href="/css/login.css">
+</head>
+<body>
+  <main class="lg-wrap">
+    <section class="lg-card" aria-labelledby="lg-title">
+      <div class="lg-logo" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
+          <path d="M13 2L4 14h7l-1 8 9-12h-7l1-8z"/>
+        </svg>
+      </div>
+      <h1 id="lg-title" class="lg-title">Bin4ry Relay</h1>
+      <p class="lg-sub">Sign in to continue</p>
+
+      <div id="loginError" class="lg-alert lg-alert--danger" role="alert" hidden></div>
+
+      <form id="loginForm" class="lg-form" novalidate>
+        <input type="hidden" id="csrfToken" name="csrf_token" value="">
+        <div class="lg-field">
+          <label class="lg-label" for="usr">Username</label>
+          <div class="lg-input-wrap">
+            <span class="lg-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                <circle cx="12" cy="7" r="4"/>
+              </svg>
+            </span>
+            <input class="lg-input" id="usr" name="usr" type="text" autocomplete="username" placeholder="Username" required autofocus>
+          </div>
+        </div>
+
+        <div class="lg-field">
+          <label class="lg-label" for="pas">Password</label>
+          <div class="lg-input-wrap">
+            <span class="lg-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="11" width="18" height="11" rx="2"/>
+                <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+              </svg>
+            </span>
+            <input class="lg-input lg-input--pass" id="pas" name="pas" type="password" autocomplete="current-password" placeholder="Password" required>
+            <button type="button" id="togglePass" class="lg-eye" aria-label="Show password" aria-pressed="false">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                <circle cx="12" cy="12" r="3"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <button type="submit" id="loginButton" class="lg-btn">
+          <span>Sign in</span>
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true">
+            <path d="M5 12h14M13 5l7 7-7 7"/>
+          </svg>
+        </button>
+      </form>
+
+      <div id="limitBox" class="lg-limit" role="alert" hidden>
+        <div class="lg-limit__title">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+            <line x1="12" y1="9" x2="12" y2="13"/>
+            <line x1="12" y1="17" x2="12.01" y2="17"/>
+          </svg>
+          <span>Concurrent session limit reached (<span id="limitRatio">2/2</span>)</span>
+        </div>
+        <p class="lg-limit__desc">Your account is already active on the maximum allowed devices:</p>
+        <ul id="limitList" class="lg-limit__list"></ul>
+        <div class="lg-limit__actions">
+          <button type="button" id="limitGo" class="lg-btn lg-btn--compact">Sign out oldest &amp; continue</button>
+          <button type="button" id="limitCancel" class="lg-btn-ghost">Cancel</button>
+        </div>
+      </div>
+
+      <p class="lg-footer">Bin4ry · Restricted access</p>
+    </section>
+  </main>
+  <script src="/js/login.js" defer></script>
+</body>
+</html>

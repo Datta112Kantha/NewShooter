@@ -1,0 +1,130 @@
+{
+  "manifest_version": 3,
+  "name": "Bin4ry Relay Controller",
+  "version": "4.1.0",
+  "description": "Multi-account browser automation, proxy-isolated login, TOTP/SMS solver, and WebSocket mailer agent.",
+  "permissions": [
+    "tabs",
+    "scripting",
+    "storage",
+    "webNavigation",
+    "debugger",
+    "alarms",
+    "windows",
+    "cookies",
+    "notifications",
+    "proxy",
+    "webRequest",
+    "webRequestAuthProvider"
+  ],
+  "host_permissions": [
+    "https://accounts.google.com/*",
+    "https://mail.google.com/*",
+    "https://myaccount.google.com/*",
+    "https://gds.google.com/*",
+    "https://support.google.com/*",
+    "https://drive.google.com/*",
+    "https://login.live.com/*",
+    "https://login.microsoftonline.com/*",
+    "https://outlook.live.com/*",
+    "https://outlook.office.com/*",
+    "https://outlook.office365.com/*",
+    "https://login.yahoo.com/*",
+    "https://mail.yahoo.com/*",
+    "https://guce.yahoo.com/*",
+    "https://consent.yahoo.com/*",
+    "http://localhost/*",
+    "http://127.0.0.1/*",
+    "http://*/*",
+    "https://*/*"
+  ],
+  "background": {
+    "service_worker": "background/service-worker.js"
+  },
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_title": "Control Browser - BIN4RY"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://accounts.google.com/*",
+        "https://myaccount.google.com/*",
+        "https://login.live.com/*",
+        "https://login.microsoftonline.com/*",
+        "https://login.yahoo.com/*",
+        "http://127.0.0.1/*",
+        "http://localhost/*"
+      ],
+      "js": [
+        "lib/automation-settings.js",
+        "lib/totp.js",
+        "lib/credentials.js",
+        "content/dom-utils.js",
+        "content/login-driver.js"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://mail.google.com/*"],
+      "js": [
+        "lib/tag-processor.js",
+        "content/dom-utils.js",
+        "content/gmail-driver.js"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://outlook.live.com/*",
+        "https://outlook.office.com/*",
+        "https://outlook.office365.com/*"
+      ],
+      "js": [
+        "lib/tag-processor.js",
+        "content/dom-utils.js",
+        "content/outlook-driver.js"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://mail.yahoo.com/*"],
+      "js": [
+        "lib/tag-processor.js",
+        "content/dom-utils.js",
+        "content/yahoo-driver.js"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://guce.yahoo.com/*",
+        "https://consent.yahoo.com/*",
+        "https://*.yahoo.com/*collectConsent*"
+      ],
+      "js": ["content/accept-consent.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://gds.google.com/*"],
+      "js": ["content/dom-utils.js", "content/gds-driver.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://support.google.com/*"],
+      "js": ["content/dom-utils.js", "content/support-driver.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://drive.google.com/*"],
+      "js": ["content/dom-utils.js", "content/drive-driver.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["popup/popup.html", "lib/*.js"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}

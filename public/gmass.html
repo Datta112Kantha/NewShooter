@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <script>
+    (function () {
+      try {
+        var c = localStorage.getItem('color-scheme') || 'light dark';
+        document.querySelector('meta[name="color-scheme"]').setAttribute('content', c);
+        var dark = c === 'dark' || (c === 'light dark' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+        document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+      } catch (e) {}
+    })();
+  </script>
+  <title>Script · Bin4ry Relay</title>
+  <link rel="stylesheet" href="/css/theme.css">
+  <style>
+    .gmass-bar {
+      display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;
+      padding: 10px 14px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 12px;
+    }
+    .gmass-state-banner {
+      display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    }
+    .gmass-state-pill {
+      display: inline-flex; align-items: center; gap: 6px; padding: 3px 9px; border-radius: 999px;
+      border: 1px solid var(--border); background: var(--surface-alt); font-size: 11px; font-weight: 700;
+    }
+    .gmass-3col {
+      display: grid; grid-template-columns: 0.9fr 1.6fr 1fr; gap: 14px;
+    }
+    @media (max-width: 1000px) { .gmass-3col { grid-template-columns: 1fr; } }
+    .gmass-card {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px;
+      display: flex; flex-direction: column; gap: 10px;
+    }
+    .gmass-card__head {
+      display: flex; align-items: center; justify-content: space-between; font-size: 11.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted);
+    }
+    .gmass-foot {
+      margin-top: 12px; display: flex; align-items: center; justify-content: space-between;
+      padding: 12px 16px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+    }
+    .btn.is-selected {
+      background: var(--primary);
+      border-color: var(--primary);
+      color: #fff;
+    }
+  </style>
+</head>
+<body>
+  <header id="gmassTopNav" class="site-header">
+    <a class="site-header__brand" href="/V3/">
+      <span class="site-header__logo" aria-hidden="true">⚡</span>
+      <span>Bin4ry - Relay</span>
+    </a>
+    <nav class="site-nav" aria-label="Primary">
+      <a class="nav-pill" href="/V3/">RELAY</a>
+      <a class="nav-pill" id="navG2" href="/gmass2">GMASS-2</a>
+      <a class="nav-pill nav-pill--fast" id="navG4" href="/gmass4">GMASS-4 <span class="fast-badge">FASTEST</span></a>
+      <a class="nav-pill" href="/V3/tags/">TAGS</a>
+      <a class="nav-pill" href="/V3/files/">FILES</a>
+    </nav>
+    <div class="site-header__utils">
+      <button type="button" id="themeToggle" class="icon-btn" aria-label="Toggle theme" aria-pressed="false">
+        <span data-icon="moon" aria-hidden="true">🌙</span>
+        <span data-icon="sun" aria-hidden="true" style="display:none">☀</span>
+      </button>
+    </div>
+  </header>
+
+  <main>
+    <section class="gmass-bar">
+      <div class="gmass-state-banner">
+        <h1 id="gmassModeHeading" style="margin:0;font-size:15px">Script · Bin4ry Relay</h1>
+        <span id="gmassStatusPill" class="metric-chip">Status: <strong>Idle</strong></span>
+        <span id="gmStateBadge" class="gmass-state-pill">STATE [<strong id="gmStateCount">0</strong>] · <span id="gmDomainHint">ALL DOMAINS</span></span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <label style="display:inline-flex;align-items:center;gap:5px;font-size:12px;cursor:pointer">
+          <input id="gmConvertPdf" type="checkbox"> HTML → PDF
+        </label>
+        <label style="display:inline-flex;align-items:center;gap:5px;font-size:12px;cursor:pointer">
+          <input id="gmHtmlOnly" type="checkbox"> HTML only
+        </label>
+        <input id="gmWatermark" class="field-input" style="width:120px" type="text" placeholder="Watermark">
+        <input id="gmFilename" class="field-input" style="width:140px" type="text" value="invoice_{orderno}" placeholder="Filename">
+        <input id="gmFromName" class="field-input" style="width:125px" type="text" placeholder="From">
+        <button type="button" id="gmSelectDomainsBtn" class="btn btn--sm">Select Domains</button>
+        <button type="button" id="gmAttachBtn" class="btn btn--sm">Attachment</button>
+      </div>
+    </section>
+
+    <section class="gmass-3col">
+      <div class="gmass-card">
+        <div class="gmass-card__head">
+          <span>EMAILS</span>
+          <span id="gmEmailCount">0</span>
+        </div>
+        <textarea id="gmEmails" class="field-textarea" rows="16" placeholder="One email per line"></textarea>
+      </div>
+
+      <div class="gmass-card">
+        <div class="gmass-card__head"><span>SUBJECT / MESSAGE / PDF HTML</span></div>
+        <input id="gmSubject" class="field-input" type="text" placeholder="Subject">
+        <textarea id="gmMessage" class="field-textarea" rows="7" placeholder="Message body text or HTML with {tags} and {spintax|options}"></textarea>
+        <div class="gmass-card__head">
+          <span>PDF HTML (Optional)</span>
+          <button type="button" id="gmPreviewPdfBtn" class="btn btn--sm">Preview</button>
+        </div>
+        <textarea id="gmPdfHtml" class="field-textarea" rows="6" placeholder="<h1>Statement {orderno}</h1><p>Amount: {grandtotal}</p>"></textarea>
+      </div>
+
+      <div class="gmass-card">
+        <div class="gmass-card__head">
+          <span>SENT</span>
+          <div style="display:flex;align-items:center;gap:8px">
+            <button type="button" id="gmShowFailedBtn" class="btn btn--sm" aria-pressed="false">Show Failed</button>
+            <span id="gmSentTotal">Total: 0 / 0</span>
+          </div>
+        </div>
+        <div id="gmSentLog" style="flex:1;overflow:auto;max-height:360px;display:flex;flex-direction:column;gap:6px;font-size:12px"></div>
+      </div>
+    </section>
+
+    <footer class="gmass-foot">
+      <div style="font-size:12px;color:var(--text-muted)">Dispatches seamlessly across connected Relay accounts &amp; proxies</div>
+      <div style="display:flex;gap:8px">
+        <button type="button" id="gmPauseBtn" class="btn">Pause</button>
+        <button type="button" id="gmBlastBtn" class="btn btn--primary">Blast</button>
+      </div>
+    </footer>
+  </main>
+
+  <dialog id="domainsDialog" class="relay-dialog relay-dialog--sm" closedby="any" aria-labelledby="domainsDlgTitle">
+    <div class="dialog-head">
+      <h2 id="domainsDlgTitle" class="dialog-title">Select Sender Domains</h2>
+      <button type="button" id="domainsDlgClose" class="dialog-close" aria-label="Close">×</button>
+    </div>
+    <div class="dialog-body">
+      <div id="domainsCheckList" style="display:flex;flex-direction:column;gap:6px"></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px">
+        <button type="button" id="clearDomainsBtn" class="btn btn--sm">All Domains</button>
+        <button type="button" id="applyDomainsBtn" class="btn btn--sm btn--primary">Apply</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="gmPreviewDialog" class="relay-dialog" closedby="any" aria-labelledby="gmPreviewTitle">
+    <div class="dialog-head">
+      <h2 id="gmPreviewTitle" class="dialog-title">PDF / HTML Live Preview</h2>
+      <button type="button" id="gmPreviewClose" class="dialog-close" aria-label="Close">×</button>
+    </div>
+    <div class="dialog-body">
+      <div id="gmPreviewMeta" style="font-size:12px;color:var(--text-muted);margin-bottom:8px"></div>
+      <iframe id="gmPreviewFrame" title="Rendered HTML preview" style="width:100%;height:320px;border:1px solid var(--border);border-radius:8px;background:#fff"></iframe>
+    </div>
+  </dialog>
+
+  <dialog id="gmAttachDialog" class="relay-dialog relay-dialog--sm" closedby="any" aria-labelledby="gmAttachTitle">
+    <div class="dialog-head">
+      <h2 id="gmAttachTitle" class="dialog-title">GMASS Attachments</h2>
+      <button type="button" id="gmAttachClose" class="dialog-close" aria-label="Close">×</button>
+    </div>
+    <div class="dialog-body">
+      <div id="gmAttachFilesList" style="display:flex;flex-direction:column;gap:6px"></div>
+    </div>
+  </dialog>
+
+  <div id="toastRegion" class="toast-region" role="region" aria-label="Notifications" aria-live="polite" aria-atomic="false"></div>
+  <script src="/js/common.js" defer></script>
+  <script src="/js/gmass.js" defer></script>
+</body>
+</html>

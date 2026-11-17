@@ -1,0 +1,28 @@
+{
+  "url": "https://2223.tech/Login.php",
+  "title": "Sign in · Bin4ry Relay",
+  "buttons": [
+    {
+      "tag": "BUTTON",
+      "id": "loginButton",
+      "className": "lg-btn",
+      "text": "Sign in"
+    },
+    {
+      "tag": "BUTTON",
+      "id": "limitGo",
+      "className": "lg-btn",
+      "text": "Sign out oldest & continue"
+    },
+    {
+      "tag": "BUTTON",
+      "id": "limitCancel",
+      "className": "lg-limit__cancel",
+      "text": "Cancel"
+    }
+  ],
+  "localStorage": {
+    "_vtid": "c9b28d6bc6d05e0bf8feb0085b35c069"
+  },
+  "sessionStorage": {}
+}

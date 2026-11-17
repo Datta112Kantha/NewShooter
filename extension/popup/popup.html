@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Control Browser - BIN4RY</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <header class="ext-header">
+    <div class="ext-header__left">
+      <div class="ext-brand">
+        <span class="ext-brand__icon" aria-hidden="true">⚡</span>
+        <h1 class="ext-brand__title">Control Browser - BIN4RY</h1>
+      </div>
+      <span class="active-chip" id="wsChip">
+        <span class="active-chip__dot" aria-hidden="true"></span>
+        <span>Active</span>
+      </span>
+    </div>
+    <button type="button" id="popoutBtn" class="ext-header-btn" title="Open in dedicated window" aria-label="Pop out window">↗</button>
+  </header>
+
+  <main class="ext-grid">
+    <div class="ext-col">
+      <!-- OPEN TABS Card -->
+      <section class="ext-card" aria-labelledby="openTabsHeading">
+        <div class="ext-card__head">
+          <h2 id="openTabsHeading">OPEN TABS</h2>
+          <div style="display:flex;align-items:center;gap:6px">
+            <label for="tabNumber" style="font-size:10.5px;color:var(--muted)">Count</label>
+            <select id="tabNumber" class="ext-select ext-select--compact" aria-label="Tab count">
+              <option value="1" selected>1</option>
+              <option value="3">3</option>
+              <option value="4">4</option>
+              <option value="5">5</option>
+              <option value="7">7</option>
+              <option value="9">9</option>
+              <option value="15">15</option>
+            </select>
+          </div>
+        </div>
+        <div class="hv-sliders">
+          <label class="hv-row">
+            <span>H <strong id="hVal">20%</strong></span>
+            <input id="hSlider" type="range" min="10" max="100" value="20">
+          </label>
+          <label class="hv-row">
+            <span>V <strong id="vVal">20%</strong></span>
+            <input id="vSlider" type="range" min="10" max="100" value="20">
+          </label>
+        </div>
+        <div style="display:flex;gap:6px;align-items:center">
+          <select id="providerSelect" class="ext-select" aria-label="Target mail provider">
+            <option value="gmail">Gmail</option>
+            <option value="outlook">Outlook</option>
+            <option value="yahoo">Yahoo</option>
+          </select>
+          <button type="button" id="openTabsBtn" class="ext-btn ext-btn--primary" style="flex:1">Open</button>
+        </div>
+      </section>
+
+      <!-- SESSION Card -->
+      <section class="ext-card" aria-labelledby="sessionHeading">
+        <div class="ext-card__head">
+          <h2 id="sessionHeading">SESSION</h2>
+        </div>
+        <div class="ext-btn-row">
+          <button type="button" id="openExistingBtn" class="ext-btn" style="flex:1">Open Existing</button>
+          <button type="button" id="reorderTabsBtn" class="ext-btn" style="flex:1">Reorder Tabs</button>
+        </div>
+      </section>
+
+      <!-- GMAIL IDS Card -->
+      <section class="ext-card" aria-labelledby="gmailIdsHeading">
+        <div class="ext-card__head">
+          <div style="display:flex;align-items:center;gap:6px">
+            <h2 id="gmailIdsHeading">GMAIL IDS</h2>
+            <span id="idCount" class="id-count-badge">0 IDs</span>
+          </div>
+          <span id="matchHint" class="match-hint" title="email pass rec 2fa [proxy]">email pass rec 2fa [proxy]</span>
+        </div>
+        <div id="loginIds" class="login-ids-box" contenteditable="true" role="textbox" aria-multiline="true" aria-label="Gmail IDs credential list" data-placeholder="user@gmail.com Password123 rec@mail.com JBSWY3DPEHPK3PXP [socks5://...]"></div>
+
+        <div class="hv-row" style="margin-top:2px">
+          <span>Gap between tabs: <strong id="gapVal">4.0s</strong></span>
+          <input id="gapSlider" type="range" min="3.0" max="10.0" step="0.5" value="4.0">
+        </div>
+
+        <div class="ext-btn-row" style="align-items:center">
+          <button type="button" id="loginQueueBtn" class="ext-btn ext-btn--success" style="flex:1">Login</button>
+          <button type="button" id="launchIsolatedBtn" class="ext-btn ext-btn--primary" title="Launch separate per-account proxied profiles via Controller Server">Isolated Proxy</button>
+          <button type="button" id="openSettingsBtn" class="ext-btn" aria-label="Open Automation Settings" title="Automation Settings">⚙</button>
+        </div>
+
+        <div class="proxy-inline-box">
+          <input id="standaloneProxyInput" class="ext-input" type="text" placeholder="Browser proxy (http/socks5://user:pass@ip:port)">
+          <button type="button" id="applyProxyBtn" class="ext-btn ext-btn--sm">Proxy</button>
+        </div>
+        <div id="popupStatusMsg" class="popup-status-msg" aria-live="polite"></div>
+      </section>
+    </div>
+
+    <!-- Right Column: Live Open Tabs -->
+    <section class="ext-card ext-card--tabs" aria-labelledby="liveTabsHeading">
+      <div class="ext-card__head">
+        <div style="display:flex;align-items:center;gap:6px">
+          <h2 id="liveTabsHeading">OPEN TABS</h2>
+          <span id="noOfTabs" class="id-count-badge">0</span>
+        </div>
+        <button type="button" id="reloadTabsBtn" class="ext-btn ext-btn--sm" title="Reload mail tabs" aria-label="Reload all mail tabs">↻</button>
+      </div>
+      <div id="tabList" class="tab-list"></div>
+      <div class="ext-btn-row" style="margin-top:auto">
+        <button type="button" id="logoutAllBtn" class="ext-btn ext-btn--sm" style="flex:1">Logout All</button>
+        <button type="button" id="closeAllBtn" class="ext-btn ext-btn--danger ext-btn--sm" style="flex:1">Close All</button>
+      </div>
+    </section>
+  </main>
+
+  <!-- Collapsible Phone Verification Panel -->
+  <section class="ext-card verification-panel" aria-labelledby="verifHeading">
+    <button type="button" id="verifToggleBtn" class="verif-toggle" aria-expanded="false">
+      <span id="verifHeading">PHONE VERIFICATION</span>
+      <span class="verif-stats">
+        <span>TOTAL <strong id="stTotal">0</strong></span>
+        <span>AVAIL <strong id="stAvail">0</strong></span>
+        <span>OCCUP <strong id="stOccup">0</strong></span>
+        <span>VERIF <strong id="stVerif">0</strong></span>
+        <span>ERRORS <strong id="stErr">0</strong></span>
+      </span>
+    </button>
+
+    <div id="verifBody" class="verif-body" hidden>
+      <textarea id="verifInput" class="ext-textarea" rows="3" placeholder="+15550101|https://sms.example/otp/1"></textarea>
+      <div class="ext-btn-row">
+        <button type="button" id="verifSyncBtn" class="ext-btn ext-btn--primary ext-btn--sm">Sync</button>
+        <button type="button" id="verifPullBtn" class="ext-btn ext-btn--sm">Pull</button>
+        <button type="button" id="verifResetErrBtn" class="ext-btn ext-btn--sm">Reset Errors</button>
+        <button type="button" id="verifClearBtn" class="ext-btn ext-btn--danger ext-btn--sm">Clear</button>
+      </div>
+      <div class="verif-table-wrap">
+        <table class="verif-table">
+          <caption class="sr-only">SMS verification phone pool status</caption>
+          <thead>
+            <tr>
+              <th scope="col">Phone</th>
+              <th scope="col">Status</th>
+              <th scope="col">Occupied By</th>
+              <th scope="col">URL</th>
+            </tr>
+          </thead>
+          <tbody id="verifTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- Automation Settings Native Dialog (compliant with modern-web-guidance) -->
+  <dialog id="automationSettingsDialog" class="ext-dialog" closedby="any" aria-labelledby="settingsDlgTitle">
+    <div class="ext-dialog__head">
+      <h2 id="settingsDlgTitle" style="margin:0;font-size:13px">Automation Settings</h2>
+      <button type="button" id="settingsDlgClose" class="ext-dialog__close" aria-label="Close">×</button>
+    </div>
+    <form id="settingsForm" class="ext-dialog__body">
+      <div class="set-group-title">Captcha</div>
+      <label class="set-check"><input id="setNotifyCaptcha" type="checkbox"> Notify on Captcha</label>
+      <label class="set-check"><input id="setCloseCaptcha" type="checkbox"> Close Tab on Captcha</label>
+      <label class="set-field">
+        <span>Captcha Timeout (sec)</span>
+        <input id="setCaptchaTimeout" class="ext-input" type="number" min="5" max="1800" value="300">
+      </label>
+
+      <div class="set-group-title">Debugging</div>
+      <label class="set-check"><input id="setDisableCloseErr" type="checkbox"> Disable Tab Close on Error</label>
+
+      <div class="set-group-title">Human-like Typing</div>
+      <label class="set-field">
+        <span>Typing Speed</span>
+        <select id="setTypingSpeed" class="ext-select">
+          <option value="slow">Slow</option>
+          <option value="normal" selected>Normal</option>
+          <option value="fast">Fast</option>
+          <option value="instant">Instant (CDP InsertText)</option>
+        </select>
+      </label>
+      <label class="set-check"><input id="setHumanize" type="checkbox"> Randomize Typing Jitter</label>
+
+      <div class="set-group-title">2-Step Verification</div>
+      <label class="set-field">
+        <span>Max TOTP Retries</span>
+        <input id="setTotpRetries" class="ext-input" type="number" min="1" max="10" value="3">
+      </label>
+      <label class="set-field">
+        <span>Controller WebSocket URL</span>
+        <input id="setWsUrl" class="ext-input" type="text" value="ws://127.0.0.1:8080">
+      </label>
+
+      <div class="ext-btn-row" style="margin-top:4px">
+        <button type="button" id="resetSettingsBtn" class="ext-btn" style="flex:1">Reset Defaults</button>
+        <button type="submit" class="ext-btn ext-btn--primary" style="flex:1">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="../lib/automation-settings.js"></script>
+  <script src="../lib/credentials.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>

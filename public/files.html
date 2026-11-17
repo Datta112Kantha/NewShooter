@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <script>
+    (function () {
+      try {
+        var c = localStorage.getItem('color-scheme') || 'light dark';
+        document.querySelector('meta[name="color-scheme"]').setAttribute('content', c);
+        var dark = c === 'dark' || (c === 'light dark' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+        document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+      } catch (e) {}
+    })();
+  </script>
+  <title>Files &amp; HTML Converter · Bin4ry Relay</title>
+  <link rel="stylesheet" href="/css/theme.css">
+  <style>
+    .files-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    @media (max-width: 900px) { .files-grid { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <header class="site-header">
+    <a class="site-header__brand" href="/V3/">
+      <span class="site-header__logo" aria-hidden="true">⚡</span>
+      <span>Bin4ry - Relay</span>
+    </a>
+    <nav class="site-nav" aria-label="Primary">
+      <a class="nav-pill" href="/V3/">RELAY</a>
+      <a class="nav-pill" href="/gmass2">GMASS-2</a>
+      <a class="nav-pill nav-pill--fast" href="/gmass4">GMASS-4 <span class="fast-badge">FASTEST</span></a>
+      <a class="nav-pill" href="/V3/tags/">TAGS</a>
+      <a class="nav-pill is-active" href="/V3/files/" aria-current="page">FILES</a>
+      <a class="nav-pill nav-pill--danger" href="/logout">LOGOUT</a>
+    </nav>
+    <div class="site-header__utils">
+      <button type="button" id="themeToggle" class="icon-btn" aria-label="Toggle theme" aria-pressed="false">
+        <span data-icon="moon" aria-hidden="true">🌙</span>
+        <span data-icon="sun" aria-hidden="true" style="display:none">☀</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="files-grid">
+    <section style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px">
+      <h1 style="margin:0 0 12px;font-size:17px">Uploaded Attachment Files</h1>
+      <div style="display:flex;gap:8px;margin-bottom:14px">
+        <input id="fileInput" type="file" class="field-input">
+        <button type="button" id="uploadBtn" class="btn btn--primary">Upload</button>
+      </div>
+      <div id="filesList" style="display:flex;flex-direction:column;gap:8px"></div>
+    </section>
+
+    <section style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px">
+      <h2 style="margin:0 0 12px;font-size:17px">Local Playwright HTML → PDF / Image Lab</h2>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px">
+        <select id="labFormat" class="field-select">
+          <option value="pdf">PDF (A4)</option>
+          <option value="png">PNG</option>
+          <option value="jpeg">JPEG</option>
+          <option value="webp">WEBP</option>
+        </select>
+        <input id="labFilename" class="field-input" type="text" value="invoice_demo" placeholder="Filename">
+        <input id="labWatermark" class="field-input" type="text" placeholder="Watermark (optional)">
+      </div>
+      <textarea id="labHtml" class="field-textarea" rows="8">&lt;h1 style="color:#4361ee"&gt;Statement Summary&lt;/h1&gt;&lt;p&gt;Generated locally without external APIs.&lt;/p&gt;</textarea>
+      <div style="display:flex;gap:8px;margin-top:10px;align-items:center">
+        <button type="button" id="labConvertBtn" class="btn btn--primary">Convert &amp; Download</button>
+        <span id="labStatus" style="font-size:12px;color:var(--text-muted)"></span>
+      </div>
+    </section>
+  </main>
+
+  <div id="toastRegion" class="toast-region" aria-live="polite" aria-atomic="false"></div>
+  <script src="/js/common.js" defer></script>
+  <script src="/js/files.js" defer></script>
+</body>
+</html>

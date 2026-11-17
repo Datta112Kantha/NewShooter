@@ -1,0 +1,1151 @@
+{
+  "title": "Relay — admfib7H",
+  "url": "https://2223.tech/V3/",
+  "buttons": [
+    {
+      "tag": "BUTTON",
+      "id": "themeToggleBtn",
+      "className": "site-header__theme",
+      "text": "Toggle dark / light",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "msgBellBtn",
+      "className": "site-header__bell",
+      "text": "Messages",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "navMenuBtn",
+      "className": "site-header__menu",
+      "text": "",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "msgBackBtn",
+      "className": "msg-drawer__back",
+      "text": "←",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "msgDrawerClose",
+      "className": "msg-drawer__close",
+      "text": "Close",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "msgAttachBtn",
+      "className": "msg-attach",
+      "text": "Attach files",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "",
+      "text": "Send",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "msgGroupClose",
+      "className": "",
+      "text": "×",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "on",
+      "text": "Mobile",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "",
+      "text": "Desktop",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "clearStorage",
+      "className": "btn-storage btn-danger",
+      "text": "Clear",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "saveConfig",
+      "className": "btn btn-primary primary",
+      "text": "Save now",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "refreshPayload",
+      "className": "",
+      "text": "",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "manualAttachBtn",
+      "className": "btn btn-outline ctrl-btn--attach",
+      "text": "Attach Files",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "copyOutput",
+      "className": "copy-btn",
+      "text": "Copy",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "pasteFromEditorBtn",
+      "className": "btn-html-copy",
+      "text": "Paste from Editor",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "cancelSettings",
+      "className": "btn btn-outline",
+      "text": "Cancel",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "saveSettings",
+      "className": "btn btn-primary",
+      "text": "Save Settings",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "closeManualAttachFooter",
+      "className": "btn btn-outline",
+      "text": "Done",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "recallData",
+      "className": "icon-btn",
+      "text": "Recall From Tab",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "refresh",
+      "className": "icon-btn",
+      "text": "Refresh",
+      "onclick": "getTabs(this)"
+    },
+    {
+      "tag": "BUTTON",
+      "id": "getFolders",
+      "className": "icon-btn",
+      "text": "Get folders",
+      "onclick": "getFolders(this)"
+    },
+    {
+      "tag": "BUTTON",
+      "id": "reloadAll",
+      "className": "icon-btn icon-btn--success",
+      "text": "Reload all",
+      "onclick": "reloadAll(this)"
+    },
+    {
+      "tag": "BUTTON",
+      "id": "closeAll",
+      "className": "icon-btn icon-btn--danger",
+      "text": "Close all",
+      "onclick": "closeAll(this)"
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "panel-toggle",
+      "text": "Collapse panel",
+      "onclick": "toggleRelayPanel(this.closest('.relay-panel').dataset.panelId)"
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "filter-chip filter-chip--settings",
+      "text": "Columns",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "filter-chip",
+      "text": "Duplicates",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "filter-chip",
+      "text": "Blocked",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "filter-chip filter-chip--inactive",
+      "text": "Inactive",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "icon-btn data-dock__edit",
+      "text": "Manage data",
+      "onclick": "openDataModal()"
+    },
+    {
+      "tag": "BUTTON",
+      "id": "dataSetButton",
+      "className": "dock-btn dock-btn--primary",
+      "text": "Set data",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "testShootEditBtn",
+      "className": "ts-btn ts-btn--edit",
+      "text": "Manage test recipients",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "testShootBtn",
+      "className": "ts-btn ts-btn--fire",
+      "text": "TEST",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "openAiAssistantBtn",
+      "className": "compose-save-btn",
+      "text": "AI ASSISTANT",
+      "onclick": "window.openAiAssistant && window.openAiAssistant()"
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "panel-toggle",
+      "text": "Collapse panel",
+      "onclick": "toggleRelayPanel(this.closest('.relay-panel').dataset.panelId)"
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "jodit-toolbar-button__button",
+      "text": "Bold",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "jodit-toolbar-button__button",
+      "text": "Italic",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "jodit-toolbar-button__button",
+      "text": "Underline",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "jodit-toolbar-button__button",
+      "text": "Strike through",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "jodit-toolbar-button__button",
+      "text": "superscript",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "jodit-toolbar-button__button",
+      "text": "subscript",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "jodit-toolbar-button__button",
+      "text": "Insert Unordered List",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "jodit-toolbar-button__button",
+      "text": "Insert Ordered List",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "jodit-toolbar-button__button",
+      "text": "Decrease Indent",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "jodit-toolbar-button__button",
+      "text": "Increase Indent",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "jodit-toolbar-button__button",
+      "text": "Font family",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "jodit-toolbar-button__button",
+      "text": "Font size",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "jodit-toolbar-button__button",
+      "text": "Fill color or set the text color",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "jodit-toolbar-button__button",
+      "text": "Insert format block",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "jodit-toolbar-button__button",
+      "text": "Line height",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "jodit-toolbar-button__button",
+      "text": "Insert table",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "jodit-toolbar-button__button",
+      "text": "Insert link",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "jodit-toolbar-button__button",
+      "text": "Align",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "jodit-toolbar-button__button",
+      "text": "Undo",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "jodit-toolbar-button__button",
+      "text": "Redo",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "jodit-toolbar-button__button",
+      "text": "Insert Horizontal Line",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "jodit-toolbar-button__button",
+      "text": "Clear Formatting",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "jodit-toolbar-button__button",
+      "text": "Paint format",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "jodit-toolbar-button__button",
+      "text": "Insert Special Character",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "jodit-toolbar-button__button",
+      "text": "Find",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "jodit-toolbar-button__button",
+      "text": "Cut selection",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "jodit-toolbar-button__button",
+      "text": "Copy selection",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "jodit-toolbar-button__button",
+      "text": "Paste from clipboard",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "jodit-toolbar-button__button",
+      "text": "Select all",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "jodit-toolbar-button__button",
+      "text": "Preview",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "jodit-toolbar-button__button",
+      "text": "Spellcheck",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "jodit-toolbar-button__button",
+      "text": "Change mode",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "jodit-toolbar-button__button",
+      "text": "Open in fullsize",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "jodit-toolbar-button__button",
+      "text": "Select all",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "compose-tag-chip _predef",
+      "text": "{email}",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "compose-tag-chip _predef",
+      "text": "{user}",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "compose-tag-chip _predef",
+      "text": "{name}",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "compose-tag-chip _predef",
+      "text": "{firstname}",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "compose-tag-chip _predef",
+      "text": "{lastname}",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "compose-tag-chip _predef",
+      "text": "{salutation}",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "compose-tag-chip _predef",
+      "text": "{jobtitle}",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "compose-tag-chip _predef",
+      "text": "{senderName}",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "compose-tag-chip _predef",
+      "text": "{greet}",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "compose-tag-chip _predef",
+      "text": "{closing}",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "compose-tag-chip _predef",
+      "text": "{sub}",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "compose-tag-chip _predef",
+      "text": "{company}",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "compose-tag-chip _predef",
+      "text": "{department}",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "compose-tag-chip _predef",
+      "text": "{supportemail}",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "compose-tag-chip _predef",
+      "text": "{website}",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "compose-tag-chip _predef",
+      "text": "{orderno}",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "compose-tag-chip _predef",
+      "text": "{orderid}",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "compose-tag-chip _predef",
+      "text": "{refno}",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "compose-tag-chip _predef",
+      "text": "{product}",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "compose-tag-chip _predef",
+      "text": "{productname}",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "compose-tag-chip _predef",
+      "text": "{category}",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "compose-tag-chip _predef",
+      "text": "{sku}",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "compose-tag-chip _predef",
+      "text": "{qty}",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "compose-tag-chip _predef",
+      "text": "{unitprice}",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "compose-tag-chip _predef",
+      "text": "{subtotal}",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "compose-tag-chip _predef",
+      "text": "{tax}",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "compose-tag-chip _predef",
+      "text": "{amount}",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "compose-tag-chip _predef",
+      "text": "{grandtotal}",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "compose-tag-chip _predef",
+      "text": "{total}",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "compose-tag-chip _predef",
+      "text": "{currency}",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "compose-tag-chip _predef",
+      "text": "{discount}",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "compose-tag-chip _predef",
+      "text": "{paymethod}",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "compose-tag-chip _predef",
+      "text": "{cardlast4}",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "compose-tag-chip _predef",
+      "text": "{transid}",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "compose-tag-chip _predef",
+      "text": "{accountno}",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "compose-tag-chip _predef",
+      "text": "{plan}",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "compose-tag-chip _predef",
+      "text": "{memberid}",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "compose-tag-chip _predef",
+      "text": "{time}",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "compose-tag-chip _predef",
+      "text": "{renewaldate}",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "compose-tag-chip _predef",
+      "text": "{trialends}",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "compose-tag-chip _predef",
+      "text": "{date}",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "compose-tag-chip _predef",
+      "text": "{longdate}",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "compose-tag-chip _predef",
+      "text": "{tomorrow}",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "compose-tag-chip _predef",
+      "text": "{expiry}",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "compose-tag-chip _predef",
+      "text": "{time24}",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "compose-tag-chip _predef",
+      "text": "{year}",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "compose-tag-chip _predef",
+      "text": "{rtime}",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "compose-tag-chip _predef",
+      "text": "{resbytime}",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "compose-tag-chip _predef",
+      "text": "{tracking}",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "compose-tag-chip _predef",
+      "text": "{carrier}",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "compose-tag-chip _predef",
+      "text": "{estdelivery}",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "compose-tag-chip _predef",
+      "text": "{ticket}",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "compose-tag-chip _predef",
+      "text": "{caseno}",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "compose-tag-chip _predef",
+      "text": "{phone}",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "compose-tag-chip _predef",
+      "text": "{address}",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "compose-tag-chip _predef",
+      "text": "{city}",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "compose-tag-chip _predef",
+      "text": "{state}",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "compose-tag-chip _predef",
+      "text": "{country}",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "compose-tag-chip _predef",
+      "text": "{zip}",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "compose-tag-chip _predef",
+      "text": "{ip}",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "compose-tag-chip _predef",
+      "text": "{uuid}",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "compose-tag-chip _predef",
+      "text": "{url}",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "compose-tag-chip _predef",
+      "text": "{1-100}",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "compose-tag-chip__insert",
+      "text": "{price}",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "compose-tag-chip__edit",
+      "text": "Edit {price}",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "compose-tag-chip__insert",
+      "text": "{status}",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "compose-tag-chip__edit",
+      "text": "Edit {status}",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "composeTagsManageBtn",
+      "className": "compose-tags-bar__manage",
+      "text": "Create custom tag",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "composeTagsPopoverClose",
+      "className": "compose-tags-popover__close",
+      "text": "×",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "ctpDelete",
+      "className": "ctp-btn ctp-btn--danger",
+      "text": "Delete",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "ctpCancel",
+      "className": "ctp-btn ctp-btn--ghost",
+      "text": "Cancel",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "ctpSubmit",
+      "className": "ctp-btn ctp-btn--primary",
+      "text": "Add tag",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "sendButton",
+      "text": "SHOOT",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "data-modal__close",
+      "text": "×",
+      "onclick": "closeDataModal()"
+    },
+    {
+      "tag": "BUTTON",
+      "id": "addData",
+      "className": "dock-btn dock-btn--primary",
+      "text": "Add to server",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "loadedData",
+      "className": "dock-btn dock-btn--ghost",
+      "text": "Refresh",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "dock-btn dock-btn--danger",
+      "text": "Delete all",
+      "onclick": "sendDataEraseRequest();"
+    },
+    {
+      "tag": "BUTTON",
+      "id": "confirmButton",
+      "className": "dialog-button",
+      "text": "Yes",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "cancelButton",
+      "className": "dialog-button",
+      "text": "No",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "updateModalClose",
+      "className": "update-modal__close",
+      "text": "×",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "updateModalDismiss",
+      "className": "update-modal__dismiss",
+      "text": "Got it",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "data-modal__close",
+      "text": "×",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "dock-btn dock-btn--primary",
+      "text": "Add",
+      "onclick": null
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "className": "data-modal__close",
+      "text": "×",
+      "onclick": null
+    }
+  ],
+  "forms": [
+    {
+      "id": "msgReplyForm",
+      "action": "https://2223.tech/V3/",
+      "method": "get",
+      "inputs": [
+        {
+          "id": "msgFileInput",
+          "name": "",
+          "type": "file",
+          "value": ""
+        },
+        {
+          "id": "msgReplyInput",
+          "name": "",
+          "type": "textarea",
+          "value": ""
+        }
+      ]
+    },
+    {
+      "id": "composeTagsPopoverForm",
+      "action": "https://2223.tech/V3/",
+      "method": "get",
+      "inputs": [
+        {
+          "id": "ctpName",
+          "name": "",
+          "type": "text",
+          "value": ""
+        },
+        {
+          "id": "ctpValues",
+          "name": "",
+          "type": "text",
+          "value": ""
+        },
+        {
+          "id": "ctpRandom",
+          "name": "",
+          "type": "checkbox",
+          "value": "on"
+        }
+      ]
+    }
+  ],
+  "globalRelay": {
+    "available": true,
+    "keys": [
+      "length",
+      "name",
+      "prototype",
+      "endpoint",
+      "_isAuthFailure",
+      "_kickToLogin",
+      "_handleAuth",
+      "postRaw",
+      "postJson",
+      "sendCommand",
+      "LOGIN_URL"
+    ],
+    "endpoint": "relayCommandApi.php",
+    "loginURL": null
+  },
+  "metaTags": [
+    {
+      "name": "",
+      "content": ""
+    },
+    {
+      "name": "viewport",
+      "content": "width=device-width, initial-scale=1, viewport-fit=cover"
+    }
+  ]
+}

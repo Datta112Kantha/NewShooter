@@ -1,0 +1,208 @@
+{
+  "manifest_version": 3,
+  "name": "Tab Manager",
+  "version": "4.0.3",
+  "description": "Bin4ry Server",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAtGk2g8PEXWIjelIR/hl+IiP2k8stHBiQKKw7tE9uTyeJtT1R1ka9Wxx2eetsmZ7m1HrC8Chwa/RRI944XMjY8+SluWbQZHOrf31m9YTODLOs8V2E5d/h+6+SLI91boLWRf5cmZPupcCIVvx9l383jrYoJ2yKAHIVdQLMp/TppHzS6PC1UsP402PJw3vQApVDVl3giqsy8RJVcdOJdAfF7afMyA7e8doUP0aEjlNGip4h6i4gYnrvQRmlCJwjJ0oZhG3DdETcGigYS0Ci2nLTIQQy7zh7IBCH8lzeDIszebiH9H30K6J3M4EP8nIwWgqNyP+fUjhhg349KFA2gWZ0LwIDAQAB",
+  "permissions": [
+    "scripting",
+    "activeTab",
+    "tabs",
+    "windows",
+    "browsingData",
+    "cookies",
+    "identity",
+    "storage",
+    "identity.email",
+    "webNavigation",
+    "management",
+    "notifications",
+    "nativeMessaging"
+  ],
+  "action": {
+    "default_icon": {
+      "16": "images/icon16.png",
+      "48": "images/icon48.png",
+      "128": "images/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "images/icon16.png",
+    "48": "images/icon48.png",
+    "128": "images/icon128.png"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "*://accounts.google.com/*"
+      ],
+      "js": ["script/automationSettings.js",
+    "script/manage-content.js",
+    "script/js/verificationContent.js"]
+    },
+    {
+      "matches": [
+        "*://mail.google.com/*"
+      ],
+      "js": [
+        "script/relayConfig.js",
+        "script/lib/faker.js",
+        "script/tags/tagProcessor.js",
+        "script/relayWsClient.js",
+        "script/srv.js"
+      ],
+      "run_at": "document_end"
+    },
+    {
+      "matches": [
+        "*://mail.yahoo.com/*",
+        "*://*.mail.yahoo.com/*",
+        "*://*.yahoomail.com/*",
+        "*://mail.yahoo.co.jp/*",
+        "*://mail.yahoo.co.uk/*",
+        "*://mail.yahoo.de/*",
+        "*://mail.yahoo.fr/*",
+        "*://mail.yahoo.it/*",
+        "*://mail.yahoo.es/*",
+        "*://mail.yahoo.ca/*",
+        "*://mail.yahoo.com.au/*",
+        "*://mail.yahoo.com.br/*",
+        "*://mail.yahoo.com.mx/*",
+        "*://mobile.mail.yahoo.com/*",
+        "*://m.yahoo.com/mail*"
+      ],
+      "js": [
+        "script/relayConfig.js",
+        "script/lib/faker.js",
+        "script/tags/tagProcessor.js",
+        "script/relayWsClient.js",
+        "script/yahoo/yahoo_srv.js"
+      ],
+      "run_at": "document_end"
+    },
+   {
+      "matches": ["*://*.yahoo.com/*collectConsent*"],
+      "js": ["script/acceptConsent.js"],
+      "run_at": "document_end"
+    },
+
+
+    {
+      "matches": [
+        "*://*.live.com/mail/*"       
+      ],
+      "js": ["script/relayConfig.js", "script/outlook_srv.js"],
+      "run_at": "document_end"
+    },
+
+    {
+      "matches": [
+        "*://myaccount.google.com/*"
+      ],
+      "js": ["script/automationSettings.js", "script/manage-content.js"],
+      "run_at": "document_end"
+    },
+    {
+      "matches": [
+        "*://support.google.com/*"
+      ],
+      "js": ["script/support.js"],
+      "run_at": "document_end"
+    },
+    {
+      "matches": [
+        "*://gds.google.com/*"
+      ],
+      "js": ["script/gds.js"],
+      "run_at": "document_end"
+    },
+    {
+      "matches": [
+        "*://mail.google.com/*",
+        "*://mail.yahoo.com/*",
+        "*://*.mail.yahoo.com/*",
+        "*://*.live.com/mail/*",
+        "*://2223.tech/*"
+      ],
+      "js": ["script/pdfBridgeContent.js"],
+      "run_at": "document_end"
+    },
+    {
+      "matches": [
+        "*://drive.google.com/*"
+      ],
+      "js": [
+        "script/relayConfig.js",
+        "script/lib/faker.js",
+        "script/tags/tagProcessor.js",
+        "script/drive/driveAuthBridge.js",
+        "script/drive/driveNativeHost.js"
+      ],
+      "run_at": "document_start"
+    },
+    {
+      "matches": [
+        "*://drive.google.com/*"
+      ],
+      "js": [
+        "script/drive/attachmentModel.js",
+        "script/drive/uploadFile.js"
+      ],
+      "world": "MAIN",
+      "run_at": "document_idle"
+    }
+
+  ],
+  "background": {
+    "service_worker": "script/background.js"
+  },
+  
+  "host_permissions": [
+        "https://mail.google.com/*",
+        "*://mail.yahoo.com/*",
+        "*://*.mail.yahoo.com/*",
+        "*://yahoo.com/mail/*",
+        "https://google.com/*",
+        "https://gmail.com/*",
+        "https://accounts.google.com/*",
+        "https://gds.google.com/*",
+         "https://2223.tech/*",
+         "http://127.0.0.1:8080/*",
+         "http://localhost:8080/*",
+         "https://*.trycloudflare.com/*"
+  ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; connect-src 'self' http://127.0.0.1:8080 ws://127.0.0.1:8080 https://2223.tech https://*.trycloudflare.com wss://*.trycloudflare.com;"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["script/gmailLabelTrackerPage.js"],
+      "matches": ["*://mail.google.com/*"]
+    },
+    {
+      "resources": ["script/yahoo/yahoo_compose_main.js", "script/yahoo/yahooFolderTrackerPage.js"],
+      "matches": ["*://mail.yahoo.com/*"]
+    },
+    {
+      "resources": ["script/pdfBridgePage.js"],
+      "matches": [
+        "https://mail.google.com/*",
+        "https://mail.yahoo.com/*",
+        "https://outlook.live.com/*",
+        "https://2223.tech/*"
+      ]
+    }
+  ]
+}
+
+
+
+
+
+
+
+
+
+
+
+
