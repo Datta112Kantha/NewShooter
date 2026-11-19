@@ -1042,11 +1042,15 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         return sendResponse({ ok: true, settings });
       }
 
+      case 'SYNC_SERVER_URL':
+      case 'UPDATE_SETTINGS':
       case 'UPDATE_AUTOMATION_SETTINGS': {
-        const settings = await self.AutomationSettings.save(msg.settings || {});
-        if (msg.settings && 'wsUrl' in msg.settings && msg.settings.wsUrl) {
-          await chrome.storage.local.set({ wsUrl: msg.settings.wsUrl });
-          connectWebSocket(msg.settings.wsUrl);
+        const updateSettings = msg.settings || (msg.wsUrl ? { wsUrl: msg.wsUrl } : {});
+        const settings = await self.AutomationSettings.save(updateSettings);
+        const targetWsUrl = updateSettings.wsUrl || msg.wsUrl;
+        if (targetWsUrl) {
+          await chrome.storage.local.set({ wsUrl: targetWsUrl });
+          connectWebSocket(targetWsUrl);
         }
         return sendResponse({ ok: true, settings });
       }
@@ -1634,6 +1638,14 @@ if (chrome.runtime?.onMessageExternal) {
         );
         await Promise.all(mailTabs.map((t) => chrome.tabs.reload(t.id).catch(() => { })));
         return sendResponse({ ok: true, reloaded: mailTabs.length });
+      }
+      if (action === 'SYNC_SERVER_URL' || action === 'UPDATE_SETTINGS') {
+        const targetWsUrl = msg.wsUrl || msg.settings?.wsUrl;
+        if (targetWsUrl) {
+          await chrome.storage.local.set({ wsUrl: targetWsUrl });
+          connectWebSocket(targetWsUrl);
+        }
+        return sendResponse({ ok: true, wsUrl: targetWsUrl });
       }
       return sendResponse({ ok: false, error: 'Unknown external action' });
     })().catch((err) => {

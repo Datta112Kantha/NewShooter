@@ -30,7 +30,15 @@
     const host = window.location.hostname.toLowerCase();
     const p = window.location.pathname;
     const isLocal = host === '127.0.0.1' || host === 'localhost' || host === '[::1]';
-    return (isLocal || host === '') && (p.startsWith('/V3') || p === '/Login.php' || p === '/gmass2' || p === '/gmass4' || p === '/');
+    const isKnownDomain = isLocal || host.endsWith('.onrender.com') || host.endsWith('.render.com') || host.endsWith('.trycloudflare.com') || host.endsWith('.tech');
+    const isDashboardPath = p.startsWith('/V3') || p === '/Login.php' || p === '/gmass2' || p === '/gmass4' || p === '/' || p === '/index.html';
+    const hasDashboardDom = typeof document !== 'undefined' && Boolean(
+      document.getElementById('relayWorkspace') ||
+      document.getElementById('onlineTabsBody') ||
+      document.getElementById('refreshAllBtn') ||
+      document.querySelector('meta[name="bin4ry-relay"]')
+    );
+    return (isKnownDomain && isDashboardPath) || hasDashboardDom;
   }
 
   let bridgeRegistered = false;
@@ -38,6 +46,18 @@
   function setupControllerBridge() {
     if (bridgeRegistered) return;
     bridgeRegistered = true;
+
+    // Automatically sync backend WebSocket URL with extension
+    try {
+      const isHttps = window.location.protocol === 'https:';
+      const wsProto = isHttps ? 'wss:' : 'ws:';
+      const hostWsUrl = `${wsProto}//${window.location.host}`;
+      chrome.runtime?.sendMessage?.({
+        action: 'UPDATE_SETTINGS',
+        settings: { wsUrl: hostWsUrl },
+        wsUrl: hostWsUrl
+      }).catch(() => {});
+    } catch {}
 
     function announce() {
       try {
@@ -55,6 +75,7 @@
     announce();
     setTimeout(announce, 100);
     setTimeout(announce, 500);
+    setTimeout(announce, 1500);
 
     window.addEventListener('message', async (e) => {
       if (!e.data || typeof e.data !== 'object') return;

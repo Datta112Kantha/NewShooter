@@ -28,13 +28,13 @@
     if (al) al.textContent = msg;
   }
 
-  function applyExtensionTabs(resp) {
+  async function applyExtensionTabs(resp) {
     if (!resp) return;
     if (Array.isArray(resp.tabs) && resp.tabs.length > 0) {
       state.onlineTabs = resp.tabs;
       renderTabsTable();
       updateDockEstimate();
-      C.apiJson('/api/tabs', { method: 'POST', body: JSON.stringify({ tabs: resp.tabs }) }).catch(() => {});
+      await C.apiJson('/api/tabs', { method: 'POST', body: JSON.stringify({ tabs: resp.tabs }) }).catch(() => {});
     }
     const totalCount = typeof resp.totalBrowserTabs === 'number'
       ? resp.totalBrowserTabs
@@ -710,7 +710,7 @@
       try {
         const extResp = await (C.queryExtensionTabs ? C.queryExtensionTabs(1200) : C.pingExtension?.(1200));
         if (extResp) {
-          applyExtensionTabs(extResp);
+          await applyExtensionTabs(extResp);
         }
       } catch {}
 
@@ -868,7 +868,7 @@
       try {
         const extResp = await (C.queryExtensionTabs ? C.queryExtensionTabs(1500) : C.pingExtension?.(1500));
         if (extResp) {
-          applyExtensionTabs(extResp);
+          await applyExtensionTabs(extResp);
         }
       } catch {}
 

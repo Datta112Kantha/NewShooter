@@ -51,7 +51,9 @@
       "http://localhost/*",
       "https://localhost/*",
       "https://2223.tech/*",
-      "https://*.trycloudflare.com/*"
+      "https://*.trycloudflare.com/*",
+      "https://*.onrender.com/*",
+      "https://*.render.com/*"
     ]
   },
   "content_scripts": [
@@ -63,7 +65,15 @@
         "https://login.microsoftonline.com/*",
         "https://login.yahoo.com/*",
         "http://127.0.0.1/*",
-        "http://localhost/*"
+        "https://127.0.0.1/*",
+        "http://localhost/*",
+        "https://localhost/*",
+        "https://*.onrender.com/*",
+        "https://*.render.com/*",
+        "https://*.trycloudflare.com/*",
+        "https://2223.tech/*",
+        "http://*/*",
+        "https://*/*"
       ],
       "js": [
         "lib/automation-settings.js",
