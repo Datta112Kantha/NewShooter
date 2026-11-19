@@ -701,7 +701,7 @@ function getProviderLoginUrl(provider) {
 }
 
 // ── Tiled Grid Window Opener & Tab Controls ──────────────────────────────────
-async function openTabsGrid({ count, provider = 'gmail', accounts = [], hGap = 15, vGap = 15, hVal, vVal, stagger = true, layout, screenWidth, screenHeight, startUrls = [], baseX = 0, baseY = 0 }) {
+async function openTabsGrid({ count, provider = 'gmail', accounts = [], hGap = 15, vGap = 15, hVal, vVal, stagger = true, layout, screenWidth, screenHeight, startUrls = [], baseX = 36, baseY = 50 }) {
   const n = Math.max(1, Math.min(20, Number(count || 1)));
   const hPercent = Math.max(10, Math.min(100, Number(hVal ?? hGap ?? 20)));
   const vPercent = Math.max(10, Math.min(100, Number(vVal ?? vGap ?? 20)));
@@ -722,11 +722,14 @@ async function openTabsGrid({ count, provider = 'gmail', accounts = [], hGap = 1
   for (let i = 0; i < n; i++) {
     let left, top;
     if (isStagger) {
-      // Diagonal staggered positioning: left = baseX + i * 36, top = baseY + i * 36
+      // Diagonal staggered positioning: left = startX + i * 36, top = startY + i * 36
+      // Ensure start coordinates sit below OS menu/task bars (>=48px) to prevent OS clamping
+      const startX = Math.max(0, Number(baseX ?? 36));
+      const startY = Math.max(48, Number(baseY ?? 50));
       const maxL = Math.max(0, availW - Math.ceil(w * 0.5));
       const maxT = Math.max(0, availH - Math.ceil(h * 0.5));
-      left = Math.max(0, Math.min(maxL, Number(baseX || 0) + i * 36));
-      top = Math.max(0, Math.min(maxT, Number(baseY || 0) + i * 36));
+      left = Math.max(0, Math.min(maxL, startX + i * 36));
+      top = Math.max(0, Math.min(maxT, startY + i * 36));
     } else {
       // Tiled grid positioning
       const col = i % cols;
@@ -746,12 +749,12 @@ async function openTabsGrid({ count, provider = 'gmail', accounts = [], hGap = 1
         top,
         width: w,
         height: h,
-        focused: i === 0
+        focused: true
       });
     } catch {
       win = await chrome.windows.create({
         url: targetUrl,
-        focused: i === 0
+        focused: true
       });
     }
     const tabId = win.tabs?.[0]?.id;
@@ -1424,8 +1427,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
             top = Math.max(0, Math.min(availH - h, row * h));
           } else {
             // Diagonal staggered positioning: left = baseX + i * 36, top = baseY + i * 36
-            const baseX = Number(msg.baseX || 0);
-            const baseY = Number(msg.baseY || 0);
+            // Ensure start coordinates sit below OS menu/task bars (>=48px) to prevent OS clamping
+            const baseX = Math.max(0, Number(msg.baseX ?? 36));
+            const baseY = Math.max(48, Number(msg.baseY ?? 50));
             w = Math.max(320, Math.min(availW - 100, Math.round(availW * 0.45)));
             h = Math.max(320, Math.min(availH - 100, Math.round(availH * 0.55)));
             const maxL = Math.max(100, availW - Math.ceil(w * 0.5));
@@ -1439,7 +1443,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
             top,
             width: w,
             height: h,
-            focused: i === 0
+            focused: true
           }).catch(() => { });
           await chrome.tabs.move(item.tab.id, { index: i }).catch(() => { });
         }
