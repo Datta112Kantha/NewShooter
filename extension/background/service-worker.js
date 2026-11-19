@@ -179,6 +179,15 @@ async function extractRpaParamsFromUrl(urlStr) {
   return false;
 }
 
+async function ensureKeepAliveAlarm() {
+  try {
+    const existing = await chrome.alarms.get('relay_keepalive');
+    if (!existing) {
+      await chrome.alarms.create('relay_keepalive', { periodInMinutes: 0.4 });
+    }
+  } catch { }
+}
+
 async function initState() {
   const res = await chrome.storage.local.get(['verificationItems', 'wsUrl', 'rpa_account', 'rpa_email']);
   if (Array.isArray(res.verificationItems)) {
@@ -186,7 +195,7 @@ async function initState() {
   }
   const ses = await getSession(['standaloneProxyAuth']);
   if (ses.standaloneProxyAuth) activeProxyAuth = ses.standaloneProxyAuth;
-  await chrome.alarms.create('relay_keepalive', { periodInMinutes: 0.4 });
+  await ensureKeepAliveAlarm();
   const tabs = await chrome.tabs.query({}).catch(() => []);
   let discovered = false;
   for (const t of tabs) {
@@ -224,12 +233,24 @@ if (chrome.action?.onClicked) {
   });
 }
 
-chrome.alarms.onAlarm.addListener((alarm) => {
+chrome.alarms.onAlarm.addListener(async (alarm) => {
   if (alarm.name === 'relay_keepalive') {
-    if (!ws || ws.readyState !== WebSocket.OPEN) {
-      connectWebSocket();
-    } else {
-      sendHeartbeat();
+    try {
+      const tabs = await queryMailAndLoginTabs();
+      if (!ws || ws.readyState !== WebSocket.OPEN) {
+        if (tabs.length > 0) {
+          await connectWebSocket();
+        } else {
+          const stored = await chrome.storage.local.get(['wsUrl', 'rpa_account']);
+          if (stored.wsUrl || stored.rpa_account) {
+            await connectWebSocket();
+          }
+        }
+      } else {
+        await sendHeartbeat();
+      }
+    } catch (err) {
+      console.warn('Keep-alive tick error:', err);
     }
     processLoginQueueTick();
   } else if (alarm.name === 'relay_login_queue') {
@@ -314,10 +335,11 @@ async function connectWebSocket(explicitUrl) {
     return;
   }
 
-  ws.onopen = () => {
+  ws.onopen = async () => {
     clearTimeout(wsReconnectTimer);
     resolveWsOpenWaiters(true);
-    sendRegisterAgent();
+    await sendRegisterAgent();
+    await sendHeartbeat();
   };
 
   ws.onmessage = async (event) => {
@@ -411,17 +433,16 @@ async function sendRegisterAgent() {
   });
 }
 
-async function sendHeartbeat() {
-  const tabs = await chrome.tabs.query({});
-  const mailTabs = tabs
-    .filter((t) => /mail\.google\.com|outlook\.(live|office|office365)\.com|mail\.yahoo\.com/i.test(t.url || ''))
-    .map((t) => ({
-      tabId: t.id,
-      title: t.title || '',
-      url: t.url || '',
-      provider: t.url.includes('outlook.') ? 'outlook' : (t.url.includes('yahoo.') ? 'yahoo' : 'gmail')
-    }));
-  sendWs({ type: 'HEARTBEAT', tabs: mailTabs });
+const MAIL_AND_LOGIN_URL_REGEX = /mail\.google\.com|accounts\.google\.com|outlook\.(live|office|office365)\.com|login\.live\.com|login\.microsoftonline\.com|mail\.yahoo\.com|login\.yahoo\.com/i;
+const LOGIN_PAGE_URL_REGEX = /accounts\.google\.com|login\.live\.com|login\.microsoftonline\.com|login\.yahoo\.com/i;
+const WEBMAIL_PAGE_URL_REGEX = /mail\.google\.com|outlook\.(live|office|office365)\.com|mail\.yahoo\.com/i;
+
+function detectProviderFromUrlOrEmail(url, email) {
+  const u = String(url || '').toLowerCase();
+  if (/outlook\.(live|office|office365)\.com|login\.live\.com|login\.microsoftonline\.com/.test(u)) return 'outlook';
+  if (/yahoo\.com|login\.yahoo\.com|mail\.yahoo\.com/.test(u)) return 'yahoo';
+  if (/google\.com|accounts\.google\.com|mail\.google\.com/.test(u)) return 'gmail';
+  return detectProviderFromEmail(email || url);
 }
 
 function detectProviderFromEmail(email) {
@@ -429,6 +450,71 @@ function detectProviderFromEmail(email) {
   if (/@(outlook|hotmail|live|msn|office365)\./.test(lo)) return 'outlook';
   if (/@(yahoo|ymail|rocketmail)\./.test(lo)) return 'yahoo';
   return 'gmail';
+}
+
+async function queryMailAndLoginTabs() {
+  const [tabs, ses, local] = await Promise.all([
+    chrome.tabs.query({}).catch(() => []),
+    getSession(['pendingLogins', 'tabEmails', 'verificationStatuses', 'tabLiveInfo']),
+    chrome.storage.local.get(['rpa_account', 'rpa_email'])
+  ]);
+  const pending = ses.pendingLogins || {};
+  const emails = ses.tabEmails || {};
+  const vs = ses.verificationStatuses || {};
+  const liveInfo = ses.tabLiveInfo || {};
+
+  const mailAndLoginTabs = tabs.filter((t) => {
+    const u = t.url || t.pendingUrl || '';
+    return MAIL_AND_LOGIN_URL_REGEX.test(u) || Boolean(pending[t.id]);
+  });
+
+  return mailAndLoginTabs.map((t) => {
+    const acc = pending[t.id];
+    const u = t.url || t.pendingUrl || (acc ? getProviderLoginUrl(acc.provider || 'gmail') : '');
+    const isLogin = LOGIN_PAGE_URL_REGEX.test(u);
+    const isMail = WEBMAIL_PAGE_URL_REGEX.test(u);
+    const emailMatch = t.title?.match(/[\w.-]+@[\w.-]+\.\w+/)?.[0];
+
+    let email = emails[t.id] || acc?.email || emailMatch || '';
+    if (!email && isLogin) {
+      email = acc?.email || 'Login Pending';
+    }
+
+    const info = liveInfo[t.id] || {};
+    const verif = email && email !== 'Login Pending' ? vs[String(email).trim().toLowerCase()] : null;
+    const provider = info.provider || acc?.provider || detectProviderFromUrlOrEmail(u, email);
+
+    let status = info.status || 'Active';
+    if (verif) {
+      status = verif.statusText || 'Verification';
+    } else if (isLogin) {
+      status = 'login_pending';
+    } else if (isMail) {
+      status = info.status || 'Ready';
+    }
+
+    return {
+      tabId: t.id,
+      id: t.id,
+      windowId: t.windowId,
+      email,
+      provider,
+      tabName: t.title || email || `${provider} Tab`,
+      title: t.title || '',
+      url: u,
+      active: Boolean(t.active),
+      status,
+      inboxCount: info.inboxCount ?? 0,
+      draftCount: info.draftCount ?? 0,
+      sentCount: info.sentCount ?? 0,
+      spamCount: info.spamCount ?? 0
+    };
+  });
+}
+
+async function sendHeartbeat() {
+  const mailTabs = await queryMailAndLoginTabs();
+  sendWs({ type: 'HEARTBEAT', tabs: mailTabs });
 }
 
 const PROVIDER_MAIL_PATTERNS = {
@@ -574,42 +660,7 @@ async function handleControllerMessage(msg) {
   }
 
   if (type === 'PING_TABS' || type === 'PING') {
-    const [tabs, ses, local] = await Promise.all([
-      chrome.tabs.query({}),
-      getSession(['pendingLogins', 'tabEmails', 'verificationStatuses', 'tabLiveInfo']),
-      chrome.storage.local.get(['rpa_account', 'rpa_email'])
-    ]);
-    const pending = ses.pendingLogins || {};
-    const emails = ses.tabEmails || {};
-    const vs = ses.verificationStatuses || {};
-    const liveInfo = ses.tabLiveInfo || {};
-
-    const tabList = tabs.map((t) => {
-      const email = emails[t.id] || pending[t.id]?.email || (t.title?.match(/[\w.-]+@[\w.-]+\.\w+/)?.[0]) || '';
-      const info = liveInfo[t.id] || {};
-      const verif = vs[String(email).trim().toLowerCase()];
-      const provider = info.provider || detectProviderFromEmail(email || t.url);
-      let status = info.status || 'Active';
-      if (verif) {
-        status = verif.statusText || 'Verification';
-      } else if (/accounts\.google\.com|login\.live\.com|login\.yahoo\.com/i.test(t.url || '')) {
-        status = 'Logging in';
-      } else if (/mail\.google\.com|outlook\.(live|office|office365)\.com|mail\.yahoo\.com/i.test(t.url || '')) {
-        status = info.status || 'Ready';
-      }
-
-      return {
-        tabId: t.id,
-        id: t.id,
-        windowId: t.windowId,
-        email,
-        provider,
-        tabName: t.title || email || 'Mail Tab',
-        status,
-        inboxCount: info.inboxCount ?? 0
-      };
-    });
-
+    const tabList = await queryMailAndLoginTabs();
     sendWs({
       type: 'PONG_TABS',
       requestId: msg.requestId,
@@ -766,6 +817,22 @@ async function openTabsGrid({ count, provider = 'gmail', accounts = [], hGap = 1
     }
     opened.push({ windowId: win.id, tabId, left, top, width: w, height: h });
   }
+
+  await ensureKeepAliveAlarm();
+
+  try {
+    const tabs = await queryMailAndLoginTabs();
+    if (tabs.length > 0) {
+      await sendWs({
+        type: 'PONG_TABS',
+        tabs,
+        timestamp: Date.now()
+      });
+    }
+  } catch (err) {
+    console.warn('Failed to broadcast tabs after openTabsGrid:', err);
+  }
+
   return opened;
 }
 
@@ -1261,32 +1328,14 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         return sendResponse({ ok: true, opened: await openTabsGrid(msg) });
 
       case 'GET_OPEN_TABS': {
-        const [tabs, ses] = await Promise.all([
-          chrome.tabs.query({}),
-          getSession(['pendingLogins', 'tabEmails', 'verificationStatuses', 'tabLiveInfo'])
+        const [tabList, ses] = await Promise.all([
+          queryMailAndLoginTabs(),
+          getSession(['verificationStatuses'])
         ]);
-        const pending = ses.pendingLogins || {};
-        const emails = ses.tabEmails || {};
-        const liveInfo = ses.tabLiveInfo || {};
         return sendResponse({
           ok: true,
           statuses: ses.verificationStatuses || {},
-          tabs: tabs.map((t) => {
-            const email = emails[t.id] || pending[t.id]?.email || '';
-            const info = liveInfo[t.id] || {};
-            return {
-              id: t.id,
-              tabId: t.id,
-              windowId: t.windowId,
-              title: t.title,
-              url: t.url,
-              active: t.active,
-              email,
-              provider: info.provider || detectProviderFromEmail(email || t.url),
-              status: info.status || 'Active',
-              inboxCount: info.inboxCount ?? 0
-            };
-          })
+          tabs: tabList
         });
       }
 
@@ -1319,48 +1368,12 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       }
 
       case 'PING_TABS': {
-        const [tabs, ses, local] = await Promise.all([
-          chrome.tabs.query({}),
-          getSession(['pendingLogins', 'tabEmails', 'verificationStatuses', 'tabLiveInfo']),
-          chrome.storage.local.get(['rpa_account', 'rpa_email'])
-        ]);
-        const pending = ses.pendingLogins || {};
-        const emails = ses.tabEmails || {};
-        const vs = ses.verificationStatuses || {};
-        const liveInfo = ses.tabLiveInfo || {};
-
-        const tabList = tabs.map((t) => {
-          const email = emails[t.id] || pending[t.id]?.email || (t.title?.match(/[\w.-]+@[\w.-]+\.\w+/)?.[0]) || '';
-          const info = liveInfo[t.id] || {};
-          const verif = vs[String(email).trim().toLowerCase()];
-          const provider = info.provider || detectProviderFromEmail(email || t.url);
-          let status = info.status || 'Active';
-          if (verif) {
-            status = verif.statusText || 'Verification';
-          } else if (/accounts\.google\.com|login\.live\.com|login\.yahoo\.com/i.test(t.url || '')) {
-            status = 'Logging in';
-          } else if (/mail\.google\.com|outlook\.(live|office|office365)\.com|mail\.yahoo\.com/i.test(t.url || '')) {
-            status = info.status || 'Ready';
-          }
-
-          return {
-            tabId: t.id,
-            id: t.id,
-            windowId: t.windowId,
-            email,
-            provider,
-            tabName: t.title || email || 'Mail Tab',
-            title: t.title || '',
-            url: t.url || '',
-            active: Boolean(t.active),
-            status,
-            inboxCount: info.inboxCount ?? 0,
-            draftCount: info.draftCount ?? 0,
-            sentCount: info.sentCount ?? 0,
-            spamCount: info.spamCount ?? 0
-          };
-        });
-
+        const tabList = await queryMailAndLoginTabs();
+        sendWs({
+          type: 'PONG_TABS',
+          tabs: tabList,
+          timestamp: Date.now()
+        }).catch(() => { });
         return sendResponse({
           ok: true,
           tabs: tabList,
@@ -1557,3 +1570,30 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   });
   return true; // keep channel open for async response
 });
+
+// ── External Message Router (Direct Dashboard-to-Extension Wakeup) ───────────
+if (chrome.runtime?.onMessageExternal) {
+  chrome.runtime.onMessageExternal.addListener((msg, sender, sendResponse) => {
+    (async () => {
+      const action = msg?.action || msg?.type;
+      if (action === 'GET_OPEN_TABS' || action === 'PING_TABS') {
+        const tabs = await queryMailAndLoginTabs();
+        await sendWs({
+          type: 'PONG_TABS',
+          tabs,
+          timestamp: Date.now()
+        }).catch(() => { });
+        return sendResponse({
+          ok: true,
+          tabs,
+          total: tabs.length,
+          timestamp: Date.now()
+        });
+      }
+      return sendResponse({ ok: false, error: 'Unknown external action' });
+    })().catch((err) => {
+      try { sendResponse({ ok: false, error: err.message }); } catch { }
+    });
+    return true; // keep channel open for async response
+  });
+}

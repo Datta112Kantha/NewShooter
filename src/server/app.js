@@ -1367,10 +1367,21 @@ function createServer(options = {}) {
         const sess = requireAuthApi(req, res);
         if (!sess) return;
         if (req.method === 'GET') {
+          if (reqUrl.searchParams.get('refresh') === '1' || reqUrl.searchParams.get('ping') === '1') {
+            wsHub.broadcastAgents({ type: 'PING_TABS' });
+          }
           return sendJson(res, 200, { ok: true, tabs: store.listOnlineTabs(), onlineTabs: store.listOnlineTabs() });
         }
         if (req.method === 'POST') {
           const body = await parseBodyParams(req);
+          if (Array.isArray(body.tabs)) {
+            const tabs = [];
+            for (const t of body.tabs) {
+              tabs.push(store.upsertOnlineTab(t));
+            }
+            wsHub.broadcastDashboards({ type: 'TABS_UPDATED', onlineTabs: store.listOnlineTabs() });
+            return sendJson(res, 200, { ok: true, tabs: store.listOnlineTabs(), onlineTabs: store.listOnlineTabs() });
+          }
           const tab = store.upsertOnlineTab(body);
           wsHub.broadcastDashboards({ type: 'TABS_UPDATED', onlineTabs: store.listOnlineTabs() });
           return sendJson(res, 200, { ok: true, tab, tabs: store.listOnlineTabs(), onlineTabs: store.listOnlineTabs() });

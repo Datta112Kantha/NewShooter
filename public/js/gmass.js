@@ -26,15 +26,22 @@
   }
 
   function updateDomainBadge() {
-    const activeTabs = onlineTabs.filter((t) => t.isActive && !t.isBlocked);
-    document.getElementById('gmStateCount').textContent = String(activeTabs.length);
+    const isLoginStage = (t) => C.isLoginStageTab ? C.isLoginStageTab(t) : (!t.email || String(t.email).includes('Login Pending') || String(t.status) === 'login_pending');
+    const readyTabs = onlineTabs.filter((t) => t.isActive && !t.isBlocked && !isLoginStage(t));
+    const pendingTabs = onlineTabs.filter(isLoginStage);
+    const countEl = document.getElementById('gmStateCount');
+    if (countEl) countEl.textContent = String(readyTabs.length);
     const hint = document.getElementById('gmDomainHint');
-    if (selectedDomains.length > 0) {
-      hint.textContent = selectedDomains.join(', ');
-    } else if (activeTabs.length > 0) {
-      hint.textContent = 'ALL DOMAINS';
-    } else {
-      hint.textContent = 'SELECT DOMAIN TO CONTINUE';
+    if (hint) {
+      if (selectedDomains.length > 0) {
+        hint.textContent = selectedDomains.join(', ');
+      } else if (readyTabs.length > 0) {
+        hint.textContent = pendingTabs.length > 0 ? `ALL DOMAINS (${pendingTabs.length} pending login)` : 'ALL DOMAINS';
+      } else if (pendingTabs.length > 0) {
+        hint.textContent = `${pendingTabs.length} TAB(S) LOGIN PENDING`;
+      } else {
+        hint.textContent = 'SELECT DOMAIN TO CONTINUE';
+      }
     }
   }
 
@@ -68,11 +75,14 @@
       if (htmlOnlyCb.checked) convCb.checked = false;
     });
 
-    const [gmResp, dashResp] = await Promise.all([
+    const [gmResp, dashResp, extResp] = await Promise.all([
       C.apiJson('/api/gmass'),
-      C.relayAction('getDashboard').catch(() => ({}))
+      C.relayAction('getDashboard').catch(() => ({})),
+      C.pingExtension ? C.pingExtension(1000).catch(() => null) : Promise.resolve(null)
     ]);
-    onlineTabs = dashResp.onlineTabs || [];
+    onlineTabs = (extResp?.tabs && Array.isArray(extResp.tabs) && extResp.tabs.length > 0)
+      ? extResp.tabs
+      : (dashResp.onlineTabs || []);
     uploadedFiles = dashResp.uploadedFiles || [];
     selectedDomains = gmResp.gmass?.selectedDomains || [];
     if (gmResp.gmass?.htmlOnly) htmlOnlyCb.checked = true;
@@ -82,11 +92,33 @@
     document.getElementById('gmSelectDomainsBtn').addEventListener('click', () => {
       const list = document.getElementById('domainsCheckList');
       list.textContent = '';
-      const domains = [...new Set(onlineTabs.map((t) => String(t.email || '').split('@')[1]).filter(Boolean))];
+      const isLoginStage = (t) => C.isLoginStageTab ? C.isLoginStageTab(t) : (!t.email || String(t.email).includes('Login Pending') || String(t.status) === 'login_pending');
+      const readyTabs = onlineTabs.filter((t) => t.isActive && !t.isBlocked && !isLoginStage(t));
+      const pendingTabs = onlineTabs.filter(isLoginStage);
+
+      // Display pending tabs notice gracefully without throwing
+      if (pendingTabs.length > 0) {
+        const pSec = document.createElement('div');
+        pSec.style.cssText = 'padding:6px 10px;border-radius:6px;background:var(--warning-bg);color:var(--warning);font-size:11.5px;font-weight:600;margin-bottom:8px;';
+        pSec.textContent = `⏳ ${pendingTabs.length} tab(s) in login stage (authentication pending). Complete login in tab to enable sending.`;
+        list.appendChild(pSec);
+      }
+
+      const domains = [...new Set(readyTabs.map((t) => {
+        try {
+          const parts = String(t.email || '').split('@');
+          return parts.length > 1 ? parts[1].toLowerCase().trim() : null;
+        } catch {
+          return null;
+        }
+      }).filter(Boolean))];
+
       if (domains.length === 0) {
         const p = document.createElement('div');
-        p.style.cssText = 'font-size:12px;color:var(--text-muted)';
-        p.textContent = 'No online sender domains available yet.';
+        p.style.cssText = 'font-size:12px;color:var(--text-muted);padding:4px 0;';
+        p.textContent = pendingTabs.length > 0
+          ? 'No authenticated sender domains ready yet. Tabs are awaiting login.'
+          : 'No online sender domains available yet.';
         list.appendChild(p);
       } else {
         for (const dom of domains) {
@@ -233,11 +265,14 @@
       try {
         const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         const sock = new WebSocket(`${proto}//${window.location.host}/ws/dashboard`);
+        sock.addEventListener('open', () => {
+          try { sock.send(JSON.stringify({ type: 'PING_TABS' })); } catch {}
+        });
         sock.addEventListener('message', (evt) => {
           try {
             const msg = JSON.parse(evt.data);
-            if (msg.onlineTabs) {
-              onlineTabs = msg.onlineTabs;
+            if (msg.onlineTabs || msg.tabs) {
+              onlineTabs = msg.onlineTabs || msg.tabs;
               updateDomainBadge();
             }
             if ((msg.type === 'GMASS_PROGRESS' || msg.type === 'GMASS_PAUSED' || msg.type === 'GMASS_RESUMED' || msg.type === 'GMASS_STOPPED') && msg.gmass) {
@@ -251,6 +286,18 @@
           } catch {}
         });
       } catch {}
+
+      // Fallback polling for tabs
+      setInterval(async () => {
+        try {
+          const res = await C.apiJson('/api/tabs');
+          const fresh = res?.onlineTabs || res?.tabs;
+          if (Array.isArray(fresh)) {
+            onlineTabs = fresh;
+            updateDomainBadge();
+          }
+        } catch {}
+      }, 5000);
     }
     connectGmassWs();
   });

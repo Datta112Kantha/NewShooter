@@ -351,6 +351,116 @@
     return { openModal, triggerDownload };
   }
 
+  function isLoginStageTab(tab) {
+    if (!tab) return false;
+    const st = String(tab.status || '').toLowerCase();
+    const em = String(tab.email || '').toLowerCase();
+    const url = String(tab.url || '').toLowerCase();
+    return st === 'login_pending'
+      || st.includes('login')
+      || st.includes('pending')
+      || st.includes('unauth')
+      || em.includes('login pending')
+      || em.includes('pending login')
+      || em.includes('unauth')
+      || /(?:accounts\.google\.com|login\.(?:live|yahoo|microsoftonline)\.com)/.test(url)
+      || !tab.email
+      || tab.email.trim() === '';
+  }
+
+  function getProviderIconHtml(provider) {
+    const p = String(provider || 'gmail').toLowerCase();
+    if (p === 'outlook' || p.includes('outlook') || p.includes('microsoft') || p.includes('live')) {
+      return '<span class="tab-provider-icon tab-provider-icon--outlook" title="Outlook" style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:4px;background:#0078d4;color:#fff;font-size:10px;font-weight:700;margin-right:6px;flex-shrink:0;">O</span>';
+    }
+    if (p === 'yahoo' || p.includes('yahoo')) {
+      return '<span class="tab-provider-icon tab-provider-icon--yahoo" title="Yahoo" style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:4px;background:#6001d2;color:#fff;font-size:10px;font-weight:700;margin-right:6px;flex-shrink:0;">Y</span>';
+    }
+    if (p === 'icloud' || p.includes('icloud') || p.includes('apple')) {
+      return '<span class="tab-provider-icon tab-provider-icon--icloud" title="iCloud" style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:4px;background:#333;color:#fff;font-size:10px;font-weight:700;margin-right:6px;flex-shrink:0;">☁</span>';
+    }
+    return '<span class="tab-provider-icon tab-provider-icon--gmail" title="Gmail" style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:4px;background:#ea4335;color:#fff;font-size:10px;font-weight:700;margin-right:6px;flex-shrink:0;">G</span>';
+  }
+
+  async function pingExtension(timeoutMs = 1500) {
+    if (typeof window === 'undefined') return null;
+
+    const hasChromeRuntime = typeof window.chrome !== 'undefined'
+      && window.chrome.runtime
+      && typeof window.chrome.runtime.sendMessage === 'function';
+
+    if (!hasChromeRuntime) return null;
+
+    const knownIds = [];
+    if (window.RELAY_EXTENSION_ID) knownIds.push(window.RELAY_EXTENSION_ID);
+    try {
+      const stored = localStorage.getItem('relay_extension_id');
+      if (stored && !knownIds.includes(stored)) knownIds.push(stored);
+    } catch {}
+
+    const pingPayload = { action: 'GET_OPEN_TABS', type: 'PING_TABS' };
+
+    return new Promise((resolve) => {
+      let resolved = false;
+      let timer = null;
+      const done = (val) => {
+        if (!resolved) {
+          resolved = true;
+          if (timer) clearTimeout(timer);
+          resolve(val);
+        }
+      };
+
+      timer = setTimeout(() => done(null), timeoutMs);
+
+      // 1. Direct sendMessage without extension ID
+      try {
+        window.chrome.runtime.sendMessage(pingPayload, (resp) => {
+          if (!window.chrome.runtime.lastError && resp && (resp.ok || resp.tabs)) {
+            done(resp);
+          }
+        });
+      } catch {}
+
+      // 2. sendMessage with known extension IDs
+      for (const id of knownIds) {
+        try {
+          window.chrome.runtime.sendMessage(id, pingPayload, (resp) => {
+            if (!window.chrome.runtime.lastError && resp && (resp.ok || resp.tabs)) {
+              done(resp);
+            }
+          });
+        } catch {}
+      }
+
+      // 3. PostMessage bridge with content script if loaded
+      const onMsg = (event) => {
+        if (event.data && (event.data.type === 'RELAY_EXTENSION_PONG' || event.data.type === 'PONG_TABS') && event.data.tabs) {
+          window.removeEventListener('message', onMsg);
+          done(event.data);
+        }
+      };
+      window.addEventListener('message', onMsg);
+      try {
+        window.postMessage({ type: 'RELAY_DASHBOARD_PING' }, '*');
+      } catch {}
+    });
+  }
+
+  async function getTabsViaApi() {
+    try {
+      const res = await apiJson('/api/tabs');
+      return res.onlineTabs || res.tabs || [];
+    } catch {
+      try {
+        const res = await relayAction('refreshTabs');
+        return res.onlineTabs || res.tabs || [];
+      } catch {
+        return [];
+      }
+    }
+  }
+
   g.RelayCommon = {
     initThemeToggle,
     showToast,
@@ -359,6 +469,10 @@
     wireDialog,
     wireGmassPopovers,
     wireChatDrawer,
-    wireDownloadExtensionModal
+    wireDownloadExtensionModal,
+    isLoginStageTab,
+    getProviderIconHtml,
+    pingExtension,
+    getTabsViaApi
   };
 })(window);

@@ -444,6 +444,7 @@ class RelayStore {
     const record = {
       key,
       tabId: tabData.tabId ?? prev.tabId ?? 0,
+      windowId: tabData.windowId ?? prev.windowId ?? null,
       accountId: tabData.accountId ?? prev.accountId ?? (linkedAcc ? linkedAcc.id : key),
       email: tabData.email ?? prev.email ?? (linkedAcc ? linkedAcc.email : ''),
       provider: tabData.provider ?? prev.provider ?? (linkedAcc ? linkedAcc.provider : 'gmail'),
@@ -464,6 +465,7 @@ class RelayStore {
       ipStatus: tabData.ipStatus || prev.ipStatus || (linkedAcc ? linkedAcc.ipStatus : 'direct'),
       blacklistHits: Number(tabData.blacklistHits ?? prev.blacklistHits ?? 0),
       replies: Array.isArray(tabData.replies) ? tabData.replies : (prev.replies || []),
+      url: tabData.url ?? prev.url ?? '',
       lastSeen: new Date().toISOString()
     };
 
@@ -483,11 +485,12 @@ class RelayStore {
     }
     return rows.map((r, idx) => {
       const em = String(r.email || '').toLowerCase().trim();
+      const isLoginPending = !em || em.includes('login pending') || em.includes('pending login') || em.includes('unauth');
       const linked = this.getAccount(r.accountId) || this.getAccount(r.email);
       return {
         ...r,
         index: idx + 1,
-        isDup: em ? (emailCounts.get(em) || 0) > 1 : false,
+        isDup: (em && !isLoginPending) ? (emailCounts.get(em) || 0) > 1 : false,
         proxyInfo: (r.proxy || linked?.proxy) ? safeDescribeProxy(r.proxy || linked.proxy) : null
       };
     });

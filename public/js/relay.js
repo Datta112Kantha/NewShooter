@@ -43,16 +43,20 @@
     const q = state.searchQuery.toLowerCase();
     const tabs = state.onlineTabs || [];
 
-    const gmailCount = tabs.filter((t) => (t.provider || 'gmail') === 'gmail').length;
-    const outlookCount = tabs.filter((t) => t.provider === 'outlook').length;
-    const yahooCount = tabs.filter((t) => t.provider === 'yahoo').length;
+    const isLoginStageTab = (t) => C.isLoginStageTab ? C.isLoginStageTab(t) : (!t.email || String(t.email).includes('Login Pending') || String(t.status) === 'login_pending');
+
+    const gmailCount = tabs.filter((t) => (t.provider || 'gmail') === 'gmail' && !isLoginStageTab(t)).length;
+    const outlookCount = tabs.filter((t) => t.provider === 'outlook' && !isLoginStageTab(t)).length;
+    const yahooCount = tabs.filter((t) => t.provider === 'yahoo' && !isLoginStageTab(t)).length;
+    const loginPendingCount = tabs.filter(isLoginStageTab).length;
     const blockedCount = tabs.filter((t) => t.isBlocked).length;
     const dupCount = tabs.filter((t) => t.isDup).length;
 
     const parts = [];
-    parts.push(`Gmail ${gmailCount}`);
+    if (gmailCount || (!outlookCount && !yahooCount && !loginPendingCount)) parts.push(`Gmail ${gmailCount}`);
     if (outlookCount) parts.push(`Outlook ${outlookCount}`);
     if (yahooCount) parts.push(`Yahoo ${yahooCount}`);
+    if (loginPendingCount) parts.push(`Login Pending ${loginPendingCount}`);
     document.getElementById('providerCountBadge').textContent = parts.join(' · ');
 
     const blkBadge = document.getElementById('blockedCountBadge');
@@ -60,7 +64,8 @@
     blkBadge.hidden = blockedCount === 0;
     document.getElementById('dupCountNum').textContent = String(dupCount);
 
-    const readyTabs = tabs.filter((t) => t.isActive && !t.isBlocked);
+    const readyTabs = tabs.filter((t) => t.isActive && !t.isBlocked && !isLoginStageTab(t));
+    const pendingTabs = tabs.filter(isLoginStageTab);
     const statusChip = document.getElementById('actionStatusChip');
     const statusText = document.getElementById('actionStatusText');
     if (state.shootState?.active) {
@@ -68,14 +73,21 @@
       statusText.textContent = `Shooting (${state.shootState.completedTasks}/${state.shootState.totalTasks})...`;
     } else if (readyTabs.length > 0) {
       statusChip.className = 'action-status-chip is-ready';
-      statusText.textContent = `Ready · ${readyTabs.length} tabs online`;
+      statusText.textContent = pendingTabs.length > 0
+        ? `Ready · ${readyTabs.length} online (${pendingTabs.length} pending login)`
+        : `Ready · ${readyTabs.length} tabs online`;
+    } else if (pendingTabs.length > 0) {
+      statusChip.className = 'action-status-chip is-busy';
+      statusText.textContent = `${pendingTabs.length} tab(s) pending login...`;
     } else {
       statusChip.className = 'action-status-chip';
       statusText.textContent = 'Waiting for tabs...';
     }
 
     const filtered = tabs.filter((t) => {
-      if (q && !String(t.email || '').toLowerCase().includes(q) && !String(t.tabName || '').toLowerCase().includes(q)) return false;
+      const isPending = isLoginStageTab(t);
+      const textToMatch = `${t.email || ''} ${t.tabName || ''} ${t.provider || ''} ${t.status || ''} ${isPending ? 'login pending' : ''}`.toLowerCase();
+      if (q && !textToMatch.includes(q)) return false;
       if (state.activeFilters.has('duplicates') && !t.isDup) return false;
       if (state.activeFilters.has('blocked') && !t.isBlocked) return false;
       if (state.activeFilters.has('inactive') && t.isActive) return false;
@@ -100,8 +112,10 @@
 
     for (const tab of filtered) {
       const tr = document.createElement('tr');
+      const isPending = isLoginStageTab(tab);
       if (tab.isDup) tr.classList.add('is-dup');
       if (tab.isBlocked) tr.classList.add('is-blocked');
+      if (isPending) tr.classList.add('is-login-pending');
 
       const tdNum = document.createElement('td');
       tdNum.className = 'col-num';
@@ -111,32 +125,64 @@
       tdData.className = 'col-data';
       const dataText = String(tab.dataAllocated || '');
       const countAlloc = dataText ? dataText.split(',').filter((s) => s.trim()).length : 0;
-      tdData.textContent = countAlloc ? `${countAlloc} rec` : '—';
-      tdData.title = dataText;
+      tdData.textContent = isPending ? '—' : (countAlloc ? `${countAlloc} rec` : '—');
+      tdData.title = isPending ? 'Awaiting login completion' : dataText;
 
       const tdEmail = document.createElement('td');
       tdEmail.className = 'col-email';
-      tdEmail.textContent = tab.email || '(Pending Login)';
-      tdEmail.title = tab.email || '';
+      const emailWrap = document.createElement('div');
+      emailWrap.style.cssText = 'display:inline-flex;align-items:center;gap:6px;';
+      if (C.getProviderIconHtml) {
+        emailWrap.innerHTML = C.getProviderIconHtml(tab.provider);
+      }
+
+      if (isPending) {
+        const badge = document.createElement('span');
+        badge.className = 'status-pill status-pill--pending';
+        badge.style.cssText = 'background:var(--warning-bg);color:var(--warning);font-weight:700;padding:2px 8px;border-radius:999px;font-size:11px;';
+        badge.textContent = 'Login Pending';
+        emailWrap.appendChild(badge);
+
+        if (tab.tabId || tab.windowId) {
+          const idLabel = document.createElement('span');
+          idLabel.style.cssText = 'font-size:10.5px;color:var(--text-muted);font-weight:600;margin-left:2px;';
+          idLabel.textContent = tab.windowId ? `[Win ${tab.windowId} · Tab ${tab.tabId}]` : `[Tab ${tab.tabId}]`;
+          emailWrap.appendChild(idLabel);
+        }
+        tdEmail.appendChild(emailWrap);
+        tdEmail.title = `${tab.provider || 'Provider'} (Window: ${tab.windowId || 'default'}, Tab: ${tab.tabId}) - Login Pending`;
+      } else {
+        const emText = document.createElement('span');
+        emText.textContent = tab.email || '(No Email)';
+        emailWrap.appendChild(emText);
+        tdEmail.appendChild(emailWrap);
+        tdEmail.title = tab.email || '';
+      }
 
       const tdTab = document.createElement('td');
       tdTab.className = 'col-tab';
-      tdTab.textContent = tab.tabName || `Tab ${tab.tabId}`;
+      tdTab.textContent = tab.tabName || (tab.windowId ? `Win ${tab.windowId} · Tab ${tab.tabId}` : `Tab ${tab.tabId}`);
+      tdTab.title = `Window: ${tab.windowId || 'default'} | Tab ID: ${tab.tabId}`;
 
       const tdInbox = document.createElement('td');
       tdInbox.className = 'col-inbox';
-      tdInbox.textContent = String(tab.inbox ?? 0);
+      tdInbox.textContent = isPending ? '—' : String(tab.inbox ?? 0);
 
       const tdDraft = document.createElement('td');
       tdDraft.className = 'col-draft';
-      tdDraft.textContent = String(tab.draft ?? 0);
+      tdDraft.textContent = isPending ? '—' : String(tab.draft ?? 0);
 
       const tdFolders = document.createElement('td');
       tdFolders.className = 'col-folders';
       const foldPill = document.createElement('span');
       foldPill.className = 'folders-pill';
-      foldPill.textContent = `S ${tab.sent ?? 0}`;
-      foldPill.title = `Inbox: ${tab.inbox || 0} | Sent: ${tab.sent || 0} | Draft: ${tab.draft || 0} | Spam: ${tab.spam || 0}`;
+      if (isPending) {
+        foldPill.textContent = '—';
+        foldPill.title = 'Awaiting login';
+      } else {
+        foldPill.textContent = `S ${tab.sent ?? 0}`;
+        foldPill.title = `Inbox: ${tab.inbox || 0} | Sent: ${tab.sent || 0} | Draft: ${tab.draft || 0} | Spam: ${tab.spam || 0}`;
+      }
       tdFolders.appendChild(foldPill);
 
       const tdStatus = document.createElement('td');
@@ -144,10 +190,20 @@
       const sp = document.createElement('span');
       const stLower = String(tab.status || 'Idle').toLowerCase();
       let stCls = 'status-pill--idle';
-      if (tab.isBlocked || stLower.includes('error') || stLower.includes('block')) stCls = 'status-pill--error';
-      else if (stLower.includes('send') || stLower.includes('queue')) stCls = 'status-pill--working';
+      if (tab.isBlocked || stLower.includes('error') || stLower.includes('block')) {
+        stCls = 'status-pill--error';
+      } else if (isPending) {
+        stCls = 'status-pill--pending';
+      } else if (stLower.includes('send') || stLower.includes('queue')) {
+        stCls = 'status-pill--working';
+      }
       sp.className = `status-pill ${stCls}`;
-      sp.textContent = tab.status || 'Idle';
+      if (isPending) {
+        sp.style.cssText = 'background:var(--warning-bg);color:var(--warning);';
+        sp.textContent = tab.status === 'login_pending' ? 'Login Pending' : (tab.status || 'Login Pending');
+      } else {
+        sp.textContent = tab.status || 'Idle';
+      }
       tdStatus.appendChild(sp);
 
       const tdIp = document.createElement('td');
@@ -554,8 +610,32 @@
   }
 
   async function refreshDashboard() {
+    try {
+      const extResp = await C.pingExtension?.(1000);
+      if (extResp?.tabs && Array.isArray(extResp.tabs) && extResp.tabs.length > 0) {
+        state.onlineTabs = extResp.tabs;
+        renderTabsTable();
+        updateDockEstimate();
+        C.apiJson('/api/tabs', { method: 'POST', body: JSON.stringify({ tabs: extResp.tabs }) }).catch(() => {});
+      }
+    } catch {}
+
     const snap = await C.relayAction('getDashboard');
-    state = { ...state, ...snap };
+    const incomingTabs = snap.onlineTabs || [];
+    if (incomingTabs.length > 0 || !state.onlineTabs || state.onlineTabs.length === 0) {
+      state = { ...state, ...snap };
+    } else {
+      state = { ...state, ...snap, onlineTabs: state.onlineTabs };
+    }
+
+    if (!state.onlineTabs || state.onlineTabs.length === 0) {
+      try {
+        const fallbackTabs = await C.getTabsViaApi();
+        if (Array.isArray(fallbackTabs) && fallbackTabs.length > 0) {
+          state.onlineTabs = fallbackTabs;
+        }
+      } catch {}
+    }
 
     document.getElementById('userNameLabel').textContent = snap.user?.username || 'admin';
     document.getElementById('userAvatar').textContent = (snap.user?.username || 'A')[0].toUpperCase();
@@ -587,18 +667,32 @@
   let tabPingTimer = null;
   function startTabPingPolling() {
     if (tabPingTimer) clearInterval(tabPingTimer);
-    tabPingTimer = setInterval(() => {
+    tabPingTimer = setInterval(async () => {
+      // 1. Direct extension detection / ping if chrome.runtime.sendMessage is available
+      try {
+        const extResp = await C.pingExtension?.(1200);
+        if (extResp?.tabs && Array.isArray(extResp.tabs) && extResp.tabs.length > 0) {
+          state.onlineTabs = extResp.tabs;
+          renderTabsTable();
+          updateDockEstimate();
+          C.apiJson('/api/tabs', { method: 'POST', body: JSON.stringify({ tabs: extResp.tabs }) }).catch(() => {});
+        }
+      } catch {}
+
+      // 2. WebSocket PING_TABS
       if (dashboardWs && dashboardWs.readyState === WebSocket.OPEN) {
         dashboardWs.send(JSON.stringify({ type: 'PING_TABS' }));
-      } else {
-        C.relayAction('refreshTabs').then((r) => {
-          if (r?.onlineTabs) {
-            state.onlineTabs = r.onlineTabs;
-            renderTabsTable();
-            updateDockEstimate();
-          }
-        }).catch(() => {});
       }
+
+      // 3. Fallback to GET /api/tabs & refreshTabs
+      try {
+        const tabs = await C.getTabsViaApi();
+        if (Array.isArray(tabs) && tabs.length > 0) {
+          state.onlineTabs = tabs;
+          renderTabsTable();
+          updateDockEstimate();
+        }
+      } catch {}
     }, 2500);
   }
 
@@ -730,13 +824,27 @@
 
     // Tabs toolbar actions
     async function performActiveTabScan() {
+      // 1. Direct extension detection / ping if chrome.runtime.sendMessage is available
+      try {
+        const extResp = await C.pingExtension?.(1200);
+        if (extResp?.tabs && Array.isArray(extResp.tabs) && extResp.tabs.length > 0) {
+          state.onlineTabs = extResp.tabs;
+          renderTabsTable();
+          updateDockEstimate();
+          C.apiJson('/api/tabs', { method: 'POST', body: JSON.stringify({ tabs: extResp.tabs }) }).catch(() => {});
+        }
+      } catch {}
+
+      // 2. WebSocket PING_TABS
       if (dashboardWs && dashboardWs.readyState === WebSocket.OPEN) {
         dashboardWs.send(JSON.stringify({ type: 'PING_TABS' }));
       }
+
+      // 3. Fallback to GET /api/tabs and relayAction('refreshTabs')
       try {
-        const r = await C.relayAction('refreshTabs');
-        if (r?.onlineTabs) {
-          state.onlineTabs = r.onlineTabs;
+        const tabs = await C.getTabsViaApi();
+        if (Array.isArray(tabs) && tabs.length > 0) {
+          state.onlineTabs = tabs;
           renderTabsTable();
           updateDockEstimate();
         }
@@ -1161,9 +1269,17 @@
     });
   }
 
-  document.addEventListener('DOMContentLoaded', () => {
+  document.addEventListener('DOMContentLoaded', async () => {
     wireEvents();
-    refreshDashboard();
+    try {
+      const extResp = await C.pingExtension?.(800);
+      if (extResp?.tabs && Array.isArray(extResp.tabs) && extResp.tabs.length > 0) {
+        state.onlineTabs = extResp.tabs;
+        renderTabsTable();
+        updateDockEstimate();
+      }
+    } catch {}
+    await refreshDashboard();
     connectDashboardWs();
   });
 })();

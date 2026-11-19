@@ -850,3 +850,94 @@ test('Regression B01, B10: Extension manifest has no default_popup and action cl
   assert.match(swCode, /width:\s*780/);
   assert.match(swCode, /height:\s*680/);
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 8. EXTENSION TAB SYNC, ONMESSAGEEXTERNAL & LOGIN-STAGE DISCOVERY
+// ─────────────────────────────────────────────────────────────────────────────
+
+test('Regression B23, B24: Extension login-stage tab discovery, externally_connectable config, and direct PONG_TABS sync', async () => {
+  const manifestPath = path.resolve(__dirname, '../extension/manifest.json');
+  const swPath = path.resolve(__dirname, '../extension/background/service-worker.js');
+
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+  const swCode = fs.readFileSync(swPath, 'utf8');
+
+  // Verify externally_connectable matches
+  const matches = manifest.externally_connectable?.matches || [];
+  assert.ok(matches.includes('http://127.0.0.1/*'), 'externally_connectable must include http://127.0.0.1/*');
+  assert.ok(matches.includes('https://127.0.0.1/*'), 'externally_connectable must include https://127.0.0.1/*');
+  assert.ok(matches.includes('http://localhost/*'), 'externally_connectable must include http://localhost/*');
+  assert.ok(matches.includes('https://localhost/*'), 'externally_connectable must include https://localhost/*');
+
+  // Verify service-worker wires onMessageExternal listener
+  assert.match(swCode, /chrome\.runtime\?\.onMessageExternal/);
+  assert.match(swCode, /chrome\.runtime\.onMessageExternal\.addListener/);
+  assert.match(swCode, /GET_OPEN_TABS/);
+  assert.match(swCode, /PING_TABS/);
+  assert.match(swCode, /PONG_TABS/);
+
+  // Verify login-stage URL regex covers Gmail, Outlook, Yahoo login pages
+  assert.match(swCode, /accounts\.google\.com/);
+  assert.match(swCode, /login\.live\.com/);
+  assert.match(swCode, /login\.yahoo\.com/);
+  assert.match(swCode, /login_pending/);
+
+  // Verify server wsHub and store integration
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ns-reg-tabs-'));
+  const app = createServer({
+    port: 0,
+    dataDir: path.join(tmpDir, 'data'),
+    profilesRoot: path.join(tmpDir, 'profiles')
+  });
+  const addr = await app.start(0, '127.0.0.1');
+
+  try {
+    const auth = app.store.authenticate('admfib7H', 'd9tQGJdZ77');
+    const sid = auth.session.token || auth.session.id;
+    const dashWs = await connectRawWs(addr.port, '/ws/dashboard', {
+      Cookie: `relay_sid=${sid}`
+    });
+    await dashWs.nextMessage((m) => m.type === 'HELLO' || m.type === 'DASHBOARD_SYNC');
+
+    const agentWs = await connectRawWs(addr.port, '/ws/agent');
+
+    // Send PONG_TABS with login tabs
+    agentWs.sendJson({
+      type: 'PONG_TABS',
+      tabs: [
+        {
+          tabId: 901,
+          url: 'https://accounts.google.com/signin/v2/identifier',
+          email: 'Login Pending',
+          provider: 'gmail',
+          status: 'login_pending'
+        },
+        {
+          tabId: 902,
+          url: 'https://login.live.com/login.srf',
+          email: 'Login Pending',
+          provider: 'outlook',
+          status: 'login_pending'
+        }
+      ]
+    });
+
+    const update = await dashWs.nextMessage(
+      (m) => m.type === 'TABS_UPDATED' && Array.isArray(m.onlineTabs) && m.onlineTabs.length === 2
+    );
+    assert.ok(update);
+    assert.equal(update.onlineTabs.length, 2);
+
+    const tabs = app.store.listOnlineTabs();
+    assert.equal(tabs[0].status, 'login_pending');
+    assert.equal(tabs[0].isDup, false, 'No false duplicate warning for login pending tabs');
+    assert.equal(tabs[1].status, 'login_pending');
+    assert.equal(tabs[1].isDup, false);
+
+    dashWs.close();
+    agentWs.close();
+  } finally {
+    await app.stop();
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});

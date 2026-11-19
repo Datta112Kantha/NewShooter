@@ -47,7 +47,9 @@
   "externally_connectable": {
     "matches": [
       "http://127.0.0.1/*",
+      "https://127.0.0.1/*",
       "http://localhost/*",
+      "https://localhost/*",
       "https://2223.tech/*",
       "https://*.trycloudflare.com/*"
     ]

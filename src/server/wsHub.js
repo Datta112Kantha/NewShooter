@@ -332,21 +332,32 @@ class WsHub {
   _updateTabsFromAgent(client, tabsList) {
     if (!Array.isArray(tabsList)) return;
     for (const t of tabsList) {
-      const extractedEmail = t.email || extractEmail(t.title) || extractEmail(t.url) || extractEmail(t.tabName) || client.email || '';
-      const resolvedProvider = t.provider || detectProvider(extractedEmail, t.url, t.provider);
-      const accId = t.accountId || client.accountId || extractedEmail || `tab_${t.tabId}`;
+      const extractedEmail = extractEmail(t.email) || extractEmail(t.title) || extractEmail(t.url) || extractEmail(t.tabName) || extractEmail(client.email) || '';
+      const isLoginStage = t.status === 'login_pending'
+        || /login|pending|unauth/i.test(String(t.status || ''))
+        || /login|pending|unauth/i.test(String(t.email || ''))
+        || /(?:accounts\.google\.com|login\.(?:live|yahoo|microsoftonline)\.com)/i.test(String(t.url || ''));
+
+      const rawEmail = extractedEmail || (isLoginStage ? (t.email || 'Login Pending') : (t.email || ''));
+      const resolvedProvider = t.provider || detectProvider(extractedEmail || rawEmail, t.url, t.provider);
+      const accId = t.accountId || (client.accountId && !client.accountId.startsWith('ext_') ? client.accountId : null) || (extractedEmail || `tab_${t.tabId || 0}`);
       if (extractedEmail && !client.email) {
         client.email = extractedEmail;
       }
 
-      let account = this.store.getAccount(accId) || (extractedEmail ? this.store.getAccount(extractedEmail) : null);
-      if (!account && extractedEmail) {
-        account = this.store.upsertAccount({
-          id: accId,
-          email: extractedEmail,
-          provider: resolvedProvider,
-          proxy: t.proxy || ''
-        });
+      let account = null;
+      if (extractedEmail) {
+        account = this.store.getAccount(accId) || this.store.getAccount(extractedEmail);
+        if (!account) {
+          account = this.store.upsertAccount({
+            id: accId,
+            email: extractedEmail,
+            provider: resolvedProvider,
+            proxy: t.proxy || ''
+          });
+        }
+      } else if (t.accountId) {
+        account = this.store.getAccount(t.accountId);
       }
 
       const placeholderKeys = [`${accId}:0`, `${accId}:pw`];
@@ -358,17 +369,23 @@ class WsHub {
         }
       }
 
-      const finalEmail = extractedEmail || inherited.email || account?.email || '';
+      const finalEmail = extractedEmail || inherited.email || account?.email || (isLoginStage ? (t.email || 'Login Pending') : '');
       const finalProvider = resolvedProvider || inherited.provider || account?.provider || 'gmail';
+      const finalStatus = isLoginStage ? (t.status || 'login_pending') : (t.status || 'Idle');
+
+      const targetKey = t.key || t.tabKey || `${accId || 'ext'}:${t.tabId || 0}`;
 
       this.store.upsertOnlineTab({
-        tabKey: `${accId || 'ext'}:${t.tabId}`,
-        tabId: t.tabId,
+        tabKey: targetKey,
+        key: targetKey,
+        tabId: t.tabId ?? 0,
+        windowId: t.windowId ?? t.window ?? undefined,
         accountId: accId,
         email: finalEmail,
         provider: finalProvider,
-        tabName: t.title || t.tabName || inherited.tabName || `${finalProvider} #${t.tabId}`,
-        status: t.status || 'Idle',
+        tabName: t.title || t.tabName || inherited.tabName || (isLoginStage ? `${finalProvider} (Login Pending #${t.tabId || 1})` : `${finalProvider} #${t.tabId || 1}`),
+        status: finalStatus,
+        url: t.url || inherited.url || '',
         dataAllocated: inherited.dataAllocated,
         ip: t.ip || inherited.ip || '127.0.0.1',
         proxy: t.proxy || inherited.proxy,
@@ -403,10 +420,14 @@ class WsHub {
       return;
     }
 
-    if (type === 'PONG_TABS' || type === 'PING_TABS_RESPONSE' || type === 'PING_TABS_REPLY' || type === 'TABS_STATUS') {
+    if (type === 'PONG_TABS' || type === 'TAB_UPDATE' || type === 'TABS_UPDATE' || type === 'PING_TABS_RESPONSE' || type === 'PING_TABS_REPLY' || type === 'TABS_STATUS') {
       client.alive = true;
       if (Array.isArray(msg.tabs)) {
         this._updateTabsFromAgent(client, msg.tabs);
+      } else if (msg.tab && typeof msg.tab === 'object') {
+        this._updateTabsFromAgent(client, [msg.tab]);
+      } else if (msg.tabId !== undefined) {
+        this._updateTabsFromAgent(client, [msg]);
       }
       return;
     }
@@ -488,10 +509,13 @@ class WsHub {
           if (msg.draft !== undefined) tab.draft = Number(msg.draft) || 0;
           if (msg.sent !== undefined) tab.sent = Number(msg.sent) || 0;
           if (msg.spam !== undefined) tab.spam = Number(msg.spam) || 0;
+          if (msg.status) tab.status = msg.status;
+          if (msg.windowId !== undefined) tab.windowId = msg.windowId;
           const extracted = msg.email || extractEmail(msg.title) || extractEmail(msg.url);
-          if (extracted && (!tab.email || tab.email.trim() === '')) {
+          if (extracted && (!tab.email || tab.email.trim() === '' || tab.email.includes('Login Pending'))) {
             tab.email = extracted;
             tab.provider = msg.provider || detectProvider(extracted, msg.url);
+            if (tab.status === 'login_pending') tab.status = 'Idle';
           }
           tab.isActive = true;
           this.store.upsertOnlineTab(tab);

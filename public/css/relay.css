@@ -438,6 +438,7 @@
 
 .status-pill--idle { background: var(--success-bg); color: var(--success); }
 .status-pill--working { background: var(--warning-bg); color: var(--warning); }
+.status-pill--pending { background: var(--warning-bg); color: var(--warning); }
 .status-pill--error { background: var(--danger-bg); color: var(--danger); }
 
 .ip-cell {
