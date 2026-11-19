@@ -373,7 +373,7 @@ class WsHub {
       const finalProvider = resolvedProvider || inherited.provider || account?.provider || 'gmail';
       const finalStatus = isLoginStage ? (t.status || 'login_pending') : (t.status || 'Idle');
 
-      const targetKey = t.key || t.tabKey || `${accId || 'ext'}:${t.tabId || 0}`;
+      const targetKey = t.key || t.tabKey || (t.tabId ? `tab_${t.tabId}` : `${accId || 'ext'}:0`);
 
       this.store.upsertOnlineTab({
         tabKey: targetKey,

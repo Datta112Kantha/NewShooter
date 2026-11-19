@@ -350,6 +350,94 @@ test('Unit & Protocol: Server wsHub, store and /api/tabs ingestion of login-stag
   }
 });
 
+test('Deduplication: Tabs reported via both POST /api/tabs and WebSocket PONG_TABS with same tabIds are not duplicated', async (t) => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'tab-dedup-test-'));
+  const app = createServer({
+    port: 0,
+    dataDir: path.join(tmpDir, 'data'),
+    profilesRoot: path.join(tmpDir, 'profiles')
+  });
+  const addr = await app.start(0, '127.0.0.1');
+
+  try {
+    const auth = app.store.authenticate('admfib7H', 'd9tQGJdZ77');
+    const sid = auth.session.token || auth.session.id;
+    const cookieHeader = { Cookie: `relay_sid=${sid}` };
+
+    const dashWs = await connectRawWs(addr.port, '/ws/dashboard', cookieHeader);
+    await dashWs.nextMessage((m) => m.type === 'HELLO' || m.type === 'DASHBOARD_SYNC');
+
+    const agentWs = await connectRawWs(addr.port, '/ws/agent');
+
+    // 5 distinct tabs to be reported by both REST and WebSocket
+    const fiveTabsRest = [
+      { tabId: 101, windowId: 1, email: 'acc1@gmail.com', provider: 'gmail', status: 'Idle', url: 'https://mail.google.com' },
+      { tabId: 102, windowId: 1, email: 'acc2@outlook.com', provider: 'outlook', status: 'Idle', url: 'https://outlook.live.com' },
+      { tabId: 103, windowId: 1, email: 'acc3@yahoo.com', provider: 'yahoo', status: 'Idle', url: 'https://mail.yahoo.com' },
+      { tabId: 104, windowId: 2, email: 'Login Pending', provider: 'gmail', status: 'login_pending', url: 'https://accounts.google.com' },
+      { tabId: 105, windowId: 2, email: 'Login Pending', provider: 'outlook', status: 'login_pending', url: 'https://login.live.com' }
+    ];
+
+    const fiveTabsWs = [
+      { tabId: 101, windowId: 1, email: 'acc1@gmail.com', provider: 'gmail', status: 'Ready', url: 'https://mail.google.com' },
+      { tabId: 102, windowId: 1, email: 'acc2@outlook.com', provider: 'outlook', status: 'Ready', url: 'https://outlook.live.com' },
+      { tabId: 103, windowId: 1, email: 'acc3@yahoo.com', provider: 'yahoo', status: 'Ready', url: 'https://mail.yahoo.com' },
+      { tabId: 104, windowId: 2, email: 'Login Pending', provider: 'gmail', status: 'login_pending', url: 'https://accounts.google.com' },
+      { tabId: 105, windowId: 2, email: 'Login Pending', provider: 'outlook', status: 'login_pending', url: 'https://login.live.com' }
+    ];
+
+    // 1. Report tabs via POST /api/tabs
+    const postRes = await postJson(addr.port, '/api/tabs', { tabs: fiveTabsRest }, cookieHeader);
+    assert.equal(postRes.statusCode, 200);
+    assert.equal(postRes.data.ok, true);
+    assert.equal(app.store.listOnlineTabs().length, 5, 'store.listOnlineTabs() should return 5 tabs after POST');
+    assert.equal(Object.keys(app.store.state.onlineTabs).length, 5, 'store.state.onlineTabs should have 5 entries after POST');
+
+    // 2. Report the same 5 tabs via WebSocket PONG_TABS
+    const dashUpdatePromise = dashWs.nextMessage((m) => m.type === 'TABS_UPDATED');
+    agentWs.sendJson({
+      type: 'PONG_TABS',
+      tabs: fiveTabsWs
+    });
+    const dashMsg = await dashUpdatePromise;
+    assert.ok(dashMsg, 'Dashboard should receive TABS_UPDATED on PONG_TABS');
+
+    // 3. Verify deduplication: exactly 5 tabs, never 10
+    const onlineTabs = app.store.listOnlineTabs();
+    assert.equal(onlineTabs.length, 5, `store.listOnlineTabs() must return exactly 5 tabs, not ${onlineTabs.length}`);
+    const stateKeys = Object.keys(app.store.state.onlineTabs);
+    assert.equal(stateKeys.length, 5, `store.state.onlineTabs must contain exactly 5 entries, not ${stateKeys.length}`);
+
+    // Verify all 5 tabIds are present and unique
+    const uniqueIds = new Set(onlineTabs.map((t) => t.tabId));
+    assert.equal(uniqueIds.size, 5, 'All 5 tabIds must be unique');
+    for (const id of [101, 102, 103, 104, 105]) {
+      assert.ok(uniqueIds.has(id), `tabId ${id} must be present`);
+    }
+
+    // 4. Oscillating updates: alternate REST POST and WebSocket PONG_TABS multiple times
+    for (let cycle = 0; cycle < 3; cycle++) {
+      const restRes = await postJson(addr.port, '/api/tabs', { tabs: fiveTabsRest }, cookieHeader);
+      assert.equal(restRes.data.tabs.length, 5, 'REST response must return 5 tabs');
+      assert.equal(app.store.listOnlineTabs().length, 5, 'store.listOnlineTabs() must remain 5');
+      assert.equal(Object.keys(app.store.state.onlineTabs).length, 5, 'store.state.onlineTabs must remain 5');
+
+      const updatePromise = dashWs.nextMessage((m) => m.type === 'TABS_UPDATED');
+      agentWs.sendJson({ type: 'PONG_TABS', tabs: fiveTabsWs });
+      await updatePromise;
+
+      assert.equal(app.store.listOnlineTabs().length, 5, 'store.listOnlineTabs() must remain 5 after WS pong');
+      assert.equal(Object.keys(app.store.state.onlineTabs).length, 5, 'store.state.onlineTabs must remain 5 after WS pong');
+    }
+
+    dashWs.close();
+    agentWs.close();
+  } finally {
+    await app.stop();
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
 test('Unit: public/index.html Online Tabs header consolidated refresh buttons & badge', () => {
   const indexPath = path.resolve(__dirname, '../public/index.html');
   const html = fs.readFileSync(indexPath, 'utf8');

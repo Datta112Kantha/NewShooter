@@ -1375,10 +1375,51 @@ function createServer(options = {}) {
         if (req.method === 'POST') {
           const body = await parseBodyParams(req);
           if (Array.isArray(body.tabs)) {
+            const activeTabIds = new Set();
+            const activeKeys = new Set();
+            for (const t of body.tabs) {
+              const tid = (t.tabId !== undefined && t.tabId !== null && t.tabId !== '' && t.tabId !== 0) ? t.tabId : undefined;
+              if (tid !== undefined) {
+                activeTabIds.add(String(tid));
+              }
+              const k = t.tabKey || t.key || (tid !== undefined ? `tab_${tid}` : null);
+              if (k) activeKeys.add(String(k));
+            }
+
             const tabs = [];
             for (const t of body.tabs) {
               tabs.push(store.upsertOnlineTab(t));
             }
+
+            // Prune stale tabs not in the active snapshot
+            const now = Date.now();
+            let stateMutated = false;
+            for (const [k, v] of Object.entries(store.state.onlineTabs)) {
+              const vTid = (v.tabId !== undefined && v.tabId !== null && v.tabId !== 0) ? String(v.tabId) : null;
+              const inActiveSnapshot = (vTid && activeTabIds.has(vTid)) || activeKeys.has(k);
+
+              // 1. Remove duplicate/stale entries for tabs in active snapshot under different keys
+              if (vTid && activeTabIds.has(vTid) && k !== `tab_${vTid}` && !activeKeys.has(k)) {
+                delete store.state.onlineTabs[k];
+                stateMutated = true;
+                continue;
+              }
+
+              // 2. If explicit snapshot/replace requested, or tab is marked inactive/closed, or stale (>60s idle and not in snapshot)
+              if (body.snapshot || body.replace) {
+                if (!inActiveSnapshot) {
+                  delete store.state.onlineTabs[k];
+                  stateMutated = true;
+                }
+              } else if (!inActiveSnapshot && (v.status === 'closed' || v.status === 'stale' || v.isActive === false || (v.lastSeen && (now - new Date(v.lastSeen).getTime() > 60000)))) {
+                delete store.state.onlineTabs[k];
+                stateMutated = true;
+              }
+            }
+            if (stateMutated) {
+              store.save();
+            }
+
             wsHub.broadcastDashboards({ type: 'TABS_UPDATED', onlineTabs: store.listOnlineTabs() });
             return sendJson(res, 200, { ok: true, tabs: store.listOnlineTabs(), onlineTabs: store.listOnlineTabs() });
           }

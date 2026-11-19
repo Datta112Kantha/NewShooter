@@ -34,7 +34,7 @@
       state.onlineTabs = resp.tabs;
       renderTabsTable();
       updateDockEstimate();
-      await C.apiJson('/api/tabs', { method: 'POST', body: JSON.stringify({ tabs: resp.tabs }) }).catch(() => {});
+      await C.apiJson('/api/tabs', { method: 'POST', body: JSON.stringify({ tabs: resp.tabs, snapshot: true }) }).catch(() => {});
     }
     const totalCount = typeof resp.totalBrowserTabs === 'number'
       ? resp.totalBrowserTabs
@@ -706,11 +706,15 @@
   function startTabPingPolling() {
     if (tabPingTimer) clearInterval(tabPingTimer);
     tabPingTimer = setInterval(async () => {
+      let extHasTabs = false;
       // 1. Direct extension detection / ping if chrome.runtime.sendMessage is available
       try {
         const extResp = await (C.queryExtensionTabs ? C.queryExtensionTabs(1200) : C.pingExtension?.(1200));
         if (extResp) {
           await applyExtensionTabs(extResp);
+          if (Array.isArray(extResp.tabs) && extResp.tabs.length > 0) {
+            extHasTabs = true;
+          }
         }
       } catch {}
 
@@ -719,15 +723,17 @@
         dashboardWs.send(JSON.stringify({ type: 'PING_TABS' }));
       }
 
-      // 3. Fallback to GET /api/tabs & refreshTabs
-      try {
-        const tabs = await C.getTabsViaApi();
-        if (Array.isArray(tabs) && tabs.length > 0) {
-          state.onlineTabs = tabs;
-          renderTabsTable();
-          updateDockEstimate();
-        }
-      } catch {}
+      // 3. Fallback to GET /api/tabs & refreshTabs (do not overwrite if extension reported active tabs)
+      if (!extHasTabs) {
+        try {
+          const tabs = await C.getTabsViaApi();
+          if (Array.isArray(tabs) && tabs.length > 0) {
+            state.onlineTabs = tabs;
+            renderTabsTable();
+            updateDockEstimate();
+          }
+        } catch {}
+      }
     }, 2500);
   }
 
@@ -864,11 +870,15 @@
 
     // Tabs toolbar actions
     async function performActiveTabScan() {
+      let extHasTabs = false;
       // 1. Direct extension communication via postMessage and chrome.runtime.sendMessage
       try {
         const extResp = await (C.queryExtensionTabs ? C.queryExtensionTabs(1500) : C.pingExtension?.(1500));
         if (extResp) {
           await applyExtensionTabs(extResp);
+          if (Array.isArray(extResp.tabs) && extResp.tabs.length > 0) {
+            extHasTabs = true;
+          }
         }
       } catch {}
 
@@ -877,15 +887,17 @@
         dashboardWs.send(JSON.stringify({ type: 'PING_TABS' }));
       }
 
-      // 3. Fallback to GET /api/tabs and relayAction('refreshTabs')
-      try {
-        const tabs = await C.getTabsViaApi();
-        if (Array.isArray(tabs) && tabs.length > 0) {
-          state.onlineTabs = tabs;
-          renderTabsTable();
-          updateDockEstimate();
-        }
-      } catch {}
+      // 3. Fallback to GET /api/tabs and relayAction('refreshTabs') (do not overwrite if extension reported active tabs)
+      if (!extHasTabs) {
+        try {
+          const tabs = await C.getTabsViaApi();
+          if (Array.isArray(tabs) && tabs.length > 0) {
+            state.onlineTabs = tabs;
+            renderTabsTable();
+            updateDockEstimate();
+          }
+        } catch {}
+      }
       await refreshDashboard();
       C.showToast('Tabs Refreshed', `Active scan completed · ${state.onlineTabs?.length || 0} tabs online`);
     }

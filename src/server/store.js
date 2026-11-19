@@ -435,20 +435,51 @@ class RelayStore {
 
   // ── Online Tabs Registry ──────────────────────────────────────────────────
   upsertOnlineTab(tabData) {
-    const key = String(tabData.tabKey || tabData.key || tabData.tabId || tabData.accountId || tabData.email);
-    const prev = this.state.onlineTabs[key] || {};
+    const rawTabId = tabData.tabId;
+    const hasTabId = rawTabId !== undefined && rawTabId !== null && rawTabId !== '' && rawTabId !== 0;
+    const tabId = hasTabId ? (Number(rawTabId) || rawTabId) : undefined;
+
+    // Normalize key to tab_${tabData.tabId} if tabId is provided
+    let key;
+    if (tabData.tabKey || tabData.key) {
+      const explicit = String(tabData.tabKey || tabData.key);
+      if (hasTabId && (explicit === String(tabId) || /^tab_\d+$/.test(explicit) || explicit === `ext:${tabId}`)) {
+        key = `tab_${tabId}`;
+      } else {
+        key = explicit;
+      }
+    } else if (hasTabId) {
+      key = `tab_${tabId}`;
+    } else {
+      key = String(tabData.accountId || tabData.email || 'tab_0');
+    }
+
+    let prev = this.state.onlineTabs[key] || {};
+
+    // Deduplicate by tabId: remove any existing entry in this.state.onlineTabs sharing the same tabId under a different key
+    if (hasTabId) {
+      for (const [k, existing] of Object.entries(this.state.onlineTabs)) {
+        if (k !== key && existing && (existing.tabId === tabId || String(existing.tabId) === String(tabId))) {
+          if (!prev || Object.keys(prev).length === 0) {
+            prev = existing;
+          }
+          delete this.state.onlineTabs[k];
+        }
+      }
+    }
+
     const linkedAcc = tabData.accountId
       ? this.getAccount(tabData.accountId)
       : (tabData.email ? this.getAccount(tabData.email) : null);
 
     const record = {
       key,
-      tabId: tabData.tabId ?? prev.tabId ?? 0,
+      tabId: tabId ?? prev.tabId ?? 0,
       windowId: tabData.windowId ?? prev.windowId ?? null,
       accountId: tabData.accountId ?? prev.accountId ?? (linkedAcc ? linkedAcc.id : key),
       email: tabData.email ?? prev.email ?? (linkedAcc ? linkedAcc.email : ''),
       provider: tabData.provider ?? prev.provider ?? (linkedAcc ? linkedAcc.provider : 'gmail'),
-      tabName: tabData.tabName ?? prev.tabName ?? `Tab ${tabData.tabId || 1}`,
+      tabName: tabData.tabName ?? prev.tabName ?? `Tab ${tabId || prev.tabId || 1}`,
       dataAllocated: tabData.dataAllocated ?? prev.dataAllocated ?? '',
       inbox: Number(tabData.inbox ?? prev.inbox ?? 0),
       draft: Number(tabData.draft ?? prev.draft ?? 0),
@@ -475,7 +506,19 @@ class RelayStore {
   }
 
   listOnlineTabs() {
-    const rows = Object.values(this.state.onlineTabs);
+    const rawRows = Object.values(this.state.onlineTabs);
+    // Ensure records sharing the same tabId are never duplicated in the returned array
+    const seenTabIds = new Set();
+    const rows = [];
+    for (const r of rawRows) {
+      const tid = (r.tabId !== undefined && r.tabId !== null && r.tabId !== 0 && r.tabId !== '') ? String(r.tabId) : null;
+      if (tid) {
+        if (seenTabIds.has(tid)) continue;
+        seenTabIds.add(tid);
+      }
+      rows.push(r);
+    }
+
     // Annotate duplicate emails (`isDup`) cleanly
     const emailCounts = new Map();
     for (const r of rows) {
@@ -500,7 +543,7 @@ class RelayStore {
     const keyStr = String(keyOrTabId);
     let removed = false;
     for (const [k, v] of Object.entries(this.state.onlineTabs)) {
-      if (k === keyStr || String(v.tabId) === keyStr || v.accountId === keyStr) {
+      if (k === keyStr || String(v.tabId) === keyStr || `tab_${v.tabId}` === keyStr || (keyStr.startsWith('tab_') && String(v.tabId) === keyStr.slice(4)) || v.accountId === keyStr) {
         delete this.state.onlineTabs[k];
         removed = true;
       }
