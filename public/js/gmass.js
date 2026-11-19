@@ -75,19 +75,28 @@
       if (htmlOnlyCb.checked) convCb.checked = false;
     });
 
-    const [gmResp, dashResp, extResp] = await Promise.all([
+    const [gmResp, dashResp] = await Promise.all([
       C.apiJson('/api/gmass'),
-      C.relayAction('getDashboard').catch(() => ({})),
-      C.pingExtension ? C.pingExtension(1000).catch(() => null) : Promise.resolve(null)
+      C.relayAction('getDashboard').catch(() => ({}))
     ]);
-    onlineTabs = (extResp?.tabs && Array.isArray(extResp.tabs) && extResp.tabs.length > 0)
-      ? extResp.tabs
-      : (dashResp.onlineTabs || []);
+    onlineTabs = dashResp.onlineTabs || [];
     uploadedFiles = dashResp.uploadedFiles || [];
     selectedDomains = gmResp.gmass?.selectedDomains || [];
     if (gmResp.gmass?.htmlOnly) htmlOnlyCb.checked = true;
     if (gmResp.gmass?.sentLog) renderLog(gmResp.gmass.sentLog);
     updateDomainBadge();
+
+    // Query extension tabs asynchronously without blocking page interaction
+    if (C.queryExtensionTabs || C.pingExtension) {
+      (C.queryExtensionTabs ? C.queryExtensionTabs(1000) : C.pingExtension(1000))
+        .then((extResp) => {
+          if (extResp?.tabs && Array.isArray(extResp.tabs) && extResp.tabs.length > 0) {
+            onlineTabs = extResp.tabs;
+            updateDomainBadge();
+          }
+        })
+        .catch(() => {});
+    }
 
     document.getElementById('gmSelectDomainsBtn').addEventListener('click', () => {
       const list = document.getElementById('domainsCheckList');

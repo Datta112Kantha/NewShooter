@@ -4,6 +4,7 @@
   const C = window.RelayCommon;
   let state = {
     onlineTabs: [],
+    totalOpenTabs: 0,
     accounts: [],
     predefinedTags: [],
     customTags: {},
@@ -25,6 +26,38 @@
   function setStatusAlert(msg) {
     const al = document.getElementById('alertRegion');
     if (al) al.textContent = msg;
+  }
+
+  function applyExtensionTabs(resp) {
+    if (!resp) return;
+    if (Array.isArray(resp.tabs) && resp.tabs.length > 0) {
+      state.onlineTabs = resp.tabs;
+      renderTabsTable();
+      updateDockEstimate();
+      C.apiJson('/api/tabs', { method: 'POST', body: JSON.stringify({ tabs: resp.tabs }) }).catch(() => {});
+    }
+    const totalCount = typeof resp.totalBrowserTabs === 'number'
+      ? resp.totalBrowserTabs
+      : (typeof resp.total === 'number' ? resp.total : (resp.tabs?.length || 0));
+    state.totalOpenTabs = totalCount;
+    const badge = document.getElementById('totalOpenTabsBadge');
+    if (badge) {
+      badge.textContent = `Tabs: ${totalCount}`;
+    }
+  }
+
+  if (typeof window !== 'undefined') {
+    window.addEventListener('message', (e) => {
+      if (!e.data || typeof e.data !== 'object') return;
+      if (e.data.type === 'BIN4RY_EXTENSION_ANNOUNCE' && e.data.extensionId) {
+        state.extensionId = e.data.extensionId;
+        window.RELAY_EXTENSION_ID = e.data.extensionId;
+        try { localStorage.setItem('relay_extension_id', e.data.extensionId); } catch {}
+      }
+      if (e.data.type === 'BIN4RY_TABS_RESPONSE') {
+        applyExtensionTabs(e.data);
+      }
+    });
   }
 
   function updateCounts() {
@@ -58,6 +91,14 @@
     if (yahooCount) parts.push(`Yahoo ${yahooCount}`);
     if (loginPendingCount) parts.push(`Login Pending ${loginPendingCount}`);
     document.getElementById('providerCountBadge').textContent = parts.join(' · ');
+
+    const totalBadge = document.getElementById('totalOpenTabsBadge');
+    if (totalBadge) {
+      const count = typeof state.totalOpenTabs === 'number'
+        ? state.totalOpenTabs
+        : tabs.length;
+      totalBadge.textContent = `Tabs: ${count}`;
+    }
 
     const blkBadge = document.getElementById('blockedCountBadge');
     blkBadge.textContent = `${blockedCount} Blocked`;
@@ -611,12 +652,9 @@
 
   async function refreshDashboard() {
     try {
-      const extResp = await C.pingExtension?.(1000);
-      if (extResp?.tabs && Array.isArray(extResp.tabs) && extResp.tabs.length > 0) {
-        state.onlineTabs = extResp.tabs;
-        renderTabsTable();
-        updateDockEstimate();
-        C.apiJson('/api/tabs', { method: 'POST', body: JSON.stringify({ tabs: extResp.tabs }) }).catch(() => {});
+      const extResp = await (C.queryExtensionTabs ? C.queryExtensionTabs(1000) : C.pingExtension?.(1000));
+      if (extResp) {
+        applyExtensionTabs(extResp);
       }
     } catch {}
 
@@ -670,12 +708,9 @@
     tabPingTimer = setInterval(async () => {
       // 1. Direct extension detection / ping if chrome.runtime.sendMessage is available
       try {
-        const extResp = await C.pingExtension?.(1200);
-        if (extResp?.tabs && Array.isArray(extResp.tabs) && extResp.tabs.length > 0) {
-          state.onlineTabs = extResp.tabs;
-          renderTabsTable();
-          updateDockEstimate();
-          C.apiJson('/api/tabs', { method: 'POST', body: JSON.stringify({ tabs: extResp.tabs }) }).catch(() => {});
+        const extResp = await (C.queryExtensionTabs ? C.queryExtensionTabs(1200) : C.pingExtension?.(1200));
+        if (extResp) {
+          applyExtensionTabs(extResp);
         }
       } catch {}
 
@@ -712,6 +747,11 @@
         const tabs = msg.onlineTabs || msg.tabs;
         if (tabs) {
           state.onlineTabs = tabs;
+          if (typeof msg.totalBrowserTabs === 'number') {
+            state.totalOpenTabs = msg.totalBrowserTabs;
+          } else if (typeof msg.total === 'number') {
+            state.totalOpenTabs = msg.total;
+          }
           renderTabsTable();
           updateDockEstimate();
         }
@@ -824,14 +864,11 @@
 
     // Tabs toolbar actions
     async function performActiveTabScan() {
-      // 1. Direct extension detection / ping if chrome.runtime.sendMessage is available
+      // 1. Direct extension communication via postMessage and chrome.runtime.sendMessage
       try {
-        const extResp = await C.pingExtension?.(1200);
-        if (extResp?.tabs && Array.isArray(extResp.tabs) && extResp.tabs.length > 0) {
-          state.onlineTabs = extResp.tabs;
-          renderTabsTable();
-          updateDockEstimate();
-          C.apiJson('/api/tabs', { method: 'POST', body: JSON.stringify({ tabs: extResp.tabs }) }).catch(() => {});
+        const extResp = await (C.queryExtensionTabs ? C.queryExtensionTabs(1500) : C.pingExtension?.(1500));
+        if (extResp) {
+          applyExtensionTabs(extResp);
         }
       } catch {}
 
@@ -853,25 +890,51 @@
       C.showToast('Tabs Refreshed', `Active scan completed · ${state.onlineTabs?.length || 0} tabs online`);
     }
 
-    document.getElementById('refreshTabsBtn').addEventListener('click', performActiveTabScan);
+    const refreshAllBtn = document.getElementById('refreshAllBtn');
+    if (refreshAllBtn) {
+      refreshAllBtn.addEventListener('click', performActiveTabScan);
+    }
+    const refreshTabsBtn = document.getElementById('refreshTabsBtn');
+    if (refreshTabsBtn && refreshTabsBtn !== refreshAllBtn) {
+      refreshTabsBtn.addEventListener('click', performActiveTabScan);
+    }
     const refreshAllTabsBtn = document.getElementById('refreshAllTabsBtn');
-    if (refreshAllTabsBtn) {
+    if (refreshAllTabsBtn && refreshAllTabsBtn !== refreshAllBtn) {
       refreshAllTabsBtn.addEventListener('click', performActiveTabScan);
     }
-    document.getElementById('getFoldersAllBtn').addEventListener('click', async () => {
+    document.getElementById('getFoldersAllBtn')?.addEventListener('click', async () => {
       await C.relayAction('getFolders', {});
       C.showToast('Folders', 'Requested folder counts across all online tabs');
     });
-    document.getElementById('reloadAllTabsBtn').addEventListener('click', async () => {
+
+    async function handleReloadTabs() {
       const ok = await showConfirmModal('Confirm Reload', 'RELOAD ALL OPENED TABS?');
       if (!ok) return;
+      try {
+        if (window.chrome?.runtime?.sendMessage) {
+          const knownId = window.RELAY_EXTENSION_ID || localStorage.getItem('relay_extension_id');
+          if (knownId) {
+            window.chrome.runtime.sendMessage(knownId, { action: 'RELOAD_ALL_TABS' }, () => {});
+          }
+        }
+        window.postMessage({ action: 'RELOAD_ALL_TABS' }, '*');
+      } catch {}
       const res = await C.relayAction('reloadAll', {});
       if (res?.reopenedCount > 0) {
         C.showToast('Reloading', `Re-opened ${res.reopenedCount} offline browser window(s) and queued shoot`);
       } else {
         C.showToast('Reloading', 'Reload command broadcast to all online mail tabs');
       }
-    });
+    }
+
+    const reloadTabsBtn = document.getElementById('reloadTabsBtn');
+    if (reloadTabsBtn) {
+      reloadTabsBtn.addEventListener('click', handleReloadTabs);
+    }
+    const reloadAllTabsBtn = document.getElementById('reloadAllTabsBtn');
+    if (reloadAllTabsBtn && reloadAllTabsBtn !== reloadTabsBtn) {
+      reloadAllTabsBtn.addEventListener('click', handleReloadTabs);
+    }
     document.getElementById('closeAllTabsBtn').addEventListener('click', async () => {
       await C.relayAction('closeAll', {});
       await refreshDashboard();
@@ -1272,11 +1335,9 @@
   document.addEventListener('DOMContentLoaded', async () => {
     wireEvents();
     try {
-      const extResp = await C.pingExtension?.(800);
-      if (extResp?.tabs && Array.isArray(extResp.tabs) && extResp.tabs.length > 0) {
-        state.onlineTabs = extResp.tabs;
-        renderTabsTable();
-        updateDockEstimate();
+      const extResp = await (C.queryExtensionTabs ? C.queryExtensionTabs(800) : C.pingExtension?.(800));
+      if (extResp) {
+        applyExtensionTabs(extResp);
       }
     } catch {}
     await refreshDashboard();

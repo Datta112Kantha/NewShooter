@@ -1328,14 +1328,32 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         return sendResponse({ ok: true, opened: await openTabsGrid(msg) });
 
       case 'GET_OPEN_TABS': {
-        const [tabList, ses] = await Promise.all([
+        const [tabList, allBrowserTabs, ses] = await Promise.all([
           queryMailAndLoginTabs(),
+          chrome.tabs.query({}).catch(() => []),
           getSession(['verificationStatuses'])
+        ]);
+        const totalBrowserTabs = allBrowserTabs.length;
+        return sendResponse({
+          ok: true,
+          tabs: tabList,
+          total: tabList.length,
+          totalBrowserTabs,
+          timestamp: Date.now(),
+          statuses: ses.verificationStatuses || {}
+        });
+      }
+
+      case 'GET_TOTAL_TABS': {
+        const [tabList, allBrowserTabs] = await Promise.all([
+          queryMailAndLoginTabs(),
+          chrome.tabs.query({}).catch(() => [])
         ]);
         return sendResponse({
           ok: true,
-          statuses: ses.verificationStatuses || {},
-          tabs: tabList
+          total: tabList.length,
+          totalBrowserTabs: allBrowserTabs.length,
+          timestamp: Date.now()
         });
       }
 
@@ -1577,18 +1595,45 @@ if (chrome.runtime?.onMessageExternal) {
     (async () => {
       const action = msg?.action || msg?.type;
       if (action === 'GET_OPEN_TABS' || action === 'PING_TABS') {
-        const tabs = await queryMailAndLoginTabs();
+        const [tabs, allBrowserTabs] = await Promise.all([
+          queryMailAndLoginTabs(),
+          chrome.tabs.query({}).catch(() => [])
+        ]);
+        const totalBrowserTabs = allBrowserTabs.length;
         await sendWs({
           type: 'PONG_TABS',
           tabs,
+          total: tabs.length,
+          totalBrowserTabs,
           timestamp: Date.now()
         }).catch(() => { });
         return sendResponse({
           ok: true,
           tabs,
           total: tabs.length,
+          totalBrowserTabs,
           timestamp: Date.now()
         });
+      }
+      if (action === 'GET_TOTAL_TABS') {
+        const [tabs, allBrowserTabs] = await Promise.all([
+          queryMailAndLoginTabs(),
+          chrome.tabs.query({}).catch(() => [])
+        ]);
+        return sendResponse({
+          ok: true,
+          total: tabs.length,
+          totalBrowserTabs: allBrowserTabs.length,
+          timestamp: Date.now()
+        });
+      }
+      if (action === 'RELOAD_ALL_TABS') {
+        const tabs = await chrome.tabs.query({}).catch(() => []);
+        const mailTabs = tabs.filter((t) =>
+          /mail\.google\.com|accounts\.google\.com|outlook\.(live|office|office365)\.com|login\.live\.com|login\.microsoftonline\.com|mail\.yahoo\.com|login\.yahoo\.com/i.test(t.url || '')
+        );
+        await Promise.all(mailTabs.map((t) => chrome.tabs.reload(t.id).catch(() => { })));
+        return sendResponse({ ok: true, reloaded: mailTabs.length });
       }
       return sendResponse({ ok: false, error: 'Unknown external action' });
     })().catch((err) => {

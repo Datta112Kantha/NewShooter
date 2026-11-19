@@ -27,8 +27,62 @@
   }
 
   function isControllerPage() {
+    const host = window.location.hostname.toLowerCase();
     const p = window.location.pathname;
-    return p.startsWith('/V3') || p === '/Login.php' || p === '/gmass2' || p === '/gmass4';
+    const isLocal = host === '127.0.0.1' || host === 'localhost' || host === '[::1]';
+    return (isLocal || host === '') && (p.startsWith('/V3') || p === '/Login.php' || p === '/gmass2' || p === '/gmass4' || p === '/');
+  }
+
+  let bridgeRegistered = false;
+
+  function setupControllerBridge() {
+    if (bridgeRegistered) return;
+    bridgeRegistered = true;
+
+    function announce() {
+      try {
+        const extId = chrome.runtime?.id;
+        const ver = chrome.runtime?.getManifest?.()?.version;
+        window.postMessage({
+          type: 'BIN4RY_EXTENSION_ANNOUNCE',
+          extensionId: extId,
+          version: ver
+        }, '*');
+      } catch {}
+    }
+
+    // Announce presence immediately and at staggered intervals to catch late dashboard listeners
+    announce();
+    setTimeout(announce, 100);
+    setTimeout(announce, 500);
+
+    window.addEventListener('message', async (e) => {
+      if (!e.data || typeof e.data !== 'object') return;
+
+      if (e.data.type === 'BIN4RY_EXTENSION_PING') {
+        announce();
+        return;
+      }
+
+      const { action, requestId } = e.data;
+      if (action === 'GET_OPEN_TABS' || action === 'GET_TOTAL_TABS' || action === 'RELOAD_ALL_TABS') {
+        try {
+          const res = await chrome.runtime.sendMessage(e.data);
+          window.postMessage({
+            type: 'BIN4RY_TABS_RESPONSE',
+            requestId,
+            ...(res || {})
+          }, '*');
+        } catch (err) {
+          window.postMessage({
+            type: 'BIN4RY_TABS_RESPONSE',
+            requestId,
+            ok: false,
+            error: err?.message || String(err)
+          }, '*');
+        }
+      }
+    });
   }
 
   async function resolvePendingAccount() {
@@ -444,7 +498,10 @@
 
   async function bootstrap() {
     if (await handleBootstrapHandoff()) return;
-    if (isControllerPage()) return;
+    if (isControllerPage()) {
+      setupControllerBridge();
+      return;
+    }
     if (active) return;
     active = true;
 
@@ -463,6 +520,11 @@
     } else if (host.includes('google.com') || document.querySelector('#identifierId, #totpPin, #knowledge-preregistered-email-response, #phoneNumberId, iframe[src*="recaptcha"]')) {
       await runGoogleFlow(account, settings);
     }
+  }
+
+  // Initialize bridge immediately on controller pages
+  if (isControllerPage()) {
+    setupControllerBridge();
   }
 
   // Re-run cleanly on SPA history navigations if driver finished earlier step

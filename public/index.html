@@ -175,15 +175,14 @@
             <h2 class="panel-title">ONLINE TABS</h2>
             <span class="header-badge header-badge--merged">DATA MERGED</span>
             <span id="providerCountBadge" class="header-badge header-badge--provider">Gmail 0</span>
+            <span id="totalOpenTabsBadge" class="header-badge header-badge--provider" title="Total open tabs reported by extension">Tabs: 0</span>
             <span id="blockedCountBadge" class="header-badge header-badge--blocked" hidden>0 Blocked</span>
           </div>
           <div class="panel-header-actions">
             <button type="button" id="manageAccountsBtn" class="btn btn--sm btn--primary" title="Manage Accounts &amp; Per-Account Proxies">+ Accounts</button>
-            <button type="button" id="recallTabsBtn" class="icon-btn icon-btn--sm" title="Recall from tab" aria-label="Recall from tab">↺</button>
-            <button type="button" id="refreshTabsBtn" class="icon-btn icon-btn--sm" title="Refresh online tabs (Active Scan)" aria-label="Refresh online tabs">↻</button>
-            <button type="button" id="refreshAllTabsBtn" class="icon-btn icon-btn--sm" title="Refresh All Tabs" aria-label="Refresh All Tabs">↻ All</button>
+            <button type="button" id="refreshAllBtn" class="btn btn--sm btn--secondary" title="Re-fetch active tabs" aria-label="Re-fetch active tabs">↻ Re-fetch active tabs</button>
             <button type="button" id="getFoldersAllBtn" class="icon-btn icon-btn--sm" title="Fetch Inbox/Sent/Drafts/Spam counts from every tab" aria-label="Get folders">📁</button>
-            <button type="button" id="reloadAllTabsBtn" class="icon-btn icon-btn--sm" title="Reload all tabs" aria-label="Reload all tabs">⟳</button>
+            <button type="button" id="reloadTabsBtn" class="icon-btn icon-btn--sm" title="Reload mail tabs" aria-label="Reload all mail tabs">↻</button>
             <button type="button" id="closeAllTabsBtn" class="icon-btn icon-btn--sm" title="Close all tabs" aria-label="Close all tabs">✕</button>
             <button type="button" class="icon-btn icon-btn--sm panel-collapse-btn" data-target="tabsPanel" aria-label="Collapse Online Tabs panel" aria-expanded="true">⌄</button>
           </div>
@@ -715,6 +714,12 @@
   <!-- Dedicated Accessible Live Regions -->
   <div id="toastRegion" class="toast-region" role="region" aria-label="Notifications" aria-live="polite" aria-atomic="false"></div>
   <div id="alertRegion" class="sr-only" aria-live="assertive" aria-atomic="true"></div>
+
+  <!-- Compatibility aliases for legacy button IDs -->
+  <div aria-hidden="true" style="position:fixed;bottom:10px;right:10px;pointer-events:auto;z-index:9999;">
+    <button type="button" id="refreshTabsBtn" style="position:fixed;bottom:10px;right:25px;width:10px;height:10px;opacity:0.01;pointer-events:auto;" tabindex="-1" aria-hidden="true"></button>
+    <button type="button" id="reloadAllTabsBtn" style="position:fixed;bottom:10px;right:10px;width:10px;height:10px;opacity:0.01;pointer-events:auto;" tabindex="-1" aria-hidden="true"></button>
+  </div>
 
   <script src="/js/common.js" defer></script>
   <script src="/js/relay.js" defer></script>

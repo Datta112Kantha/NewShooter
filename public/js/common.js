@@ -382,69 +382,142 @@
     return '<span class="tab-provider-icon tab-provider-icon--gmail" title="Gmail" style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:4px;background:#ea4335;color:#fff;font-size:10px;font-weight:700;margin-right:6px;flex-shrink:0;">G</span>';
   }
 
-  async function pingExtension(timeoutMs = 1500) {
+  // ── Extension ID Discovery & Announcement Listener ─────────────────────────
+  let discoveredExtensionId = null;
+  try {
+    discoveredExtensionId = localStorage.getItem('relay_extension_id') || null;
+    if (discoveredExtensionId && typeof window !== 'undefined') {
+      window.RELAY_EXTENSION_ID = window.RELAY_EXTENSION_ID || discoveredExtensionId;
+    }
+  } catch {}
+
+  if (typeof window !== 'undefined') {
+    window.addEventListener('message', (event) => {
+      if (!event.data || typeof event.data !== 'object') return;
+      if (event.data.type === 'BIN4RY_EXTENSION_ANNOUNCE' && event.data.extensionId) {
+        discoveredExtensionId = event.data.extensionId;
+        window.RELAY_EXTENSION_ID = event.data.extensionId;
+        try {
+          localStorage.setItem('relay_extension_id', event.data.extensionId);
+        } catch {}
+      }
+    });
+
+    // Provide alias support for legacy button IDs if accessed via document.getElementById
+    const origGetElementById = document.getElementById.bind(document);
+    document.getElementById = function(id) {
+      if (id === 'refreshTabsBtn') {
+        return origGetElementById('refreshAllBtn') || origGetElementById('refreshTabsBtn');
+      }
+      if (id === 'reloadAllTabsBtn') {
+        return origGetElementById('reloadTabsBtn') || origGetElementById('reloadAllTabsBtn');
+      }
+      return origGetElementById(id);
+    };
+
+    // Forward clicks from alias buttons to primary buttons
+    document.addEventListener('DOMContentLoaded', () => {
+      const aliasRefresh = origGetElementById('refreshTabsBtn');
+      const primaryRefresh = origGetElementById('refreshAllBtn');
+      if (aliasRefresh && primaryRefresh && aliasRefresh !== primaryRefresh) {
+        aliasRefresh.addEventListener('click', () => primaryRefresh.click());
+      }
+      const aliasReload = origGetElementById('reloadAllTabsBtn');
+      const primaryReload = origGetElementById('reloadTabsBtn');
+      if (aliasReload && primaryReload && aliasReload !== primaryReload) {
+        aliasReload.addEventListener('click', () => primaryReload.click());
+      }
+    });
+  }
+
+  async function queryExtensionTabs(timeoutMs = 1500) {
     if (typeof window === 'undefined') return null;
-
-    const hasChromeRuntime = typeof window.chrome !== 'undefined'
-      && window.chrome.runtime
-      && typeof window.chrome.runtime.sendMessage === 'function';
-
-    if (!hasChromeRuntime) return null;
 
     const knownIds = [];
     if (window.RELAY_EXTENSION_ID) knownIds.push(window.RELAY_EXTENSION_ID);
+    if (discoveredExtensionId && !knownIds.includes(discoveredExtensionId)) knownIds.push(discoveredExtensionId);
     try {
       const stored = localStorage.getItem('relay_extension_id');
       if (stored && !knownIds.includes(stored)) knownIds.push(stored);
     } catch {}
 
-    const pingPayload = { action: 'GET_OPEN_TABS', type: 'PING_TABS' };
+    const requestId = 'req_' + Math.random().toString(36).slice(2) + '_' + Date.now();
+    const pingPayload = { action: 'GET_OPEN_TABS', type: 'PING_TABS', requestId };
 
     return new Promise((resolve) => {
       let resolved = false;
       let timer = null;
+      const cleanup = () => {
+        if (timer) clearTimeout(timer);
+        window.removeEventListener('message', onMsg);
+      };
       const done = (val) => {
         if (!resolved) {
           resolved = true;
-          if (timer) clearTimeout(timer);
+          cleanup();
           resolve(val);
         }
       };
 
       timer = setTimeout(() => done(null), timeoutMs);
 
-      // 1. Direct sendMessage without extension ID
-      try {
-        window.chrome.runtime.sendMessage(pingPayload, (resp) => {
-          if (!window.chrome.runtime.lastError && resp && (resp.ok || resp.tabs)) {
-            done(resp);
-          }
-        });
-      } catch {}
-
-      // 2. sendMessage with known extension IDs
-      for (const id of knownIds) {
-        try {
-          window.chrome.runtime.sendMessage(id, pingPayload, (resp) => {
-            if (!window.chrome.runtime.lastError && resp && (resp.ok || resp.tabs)) {
-              done(resp);
-            }
-          });
-        } catch {}
-      }
-
-      // 3. PostMessage bridge with content script if loaded
+      // Listen for responses via window.postMessage from content script
       const onMsg = (event) => {
-        if (event.data && (event.data.type === 'RELAY_EXTENSION_PONG' || event.data.type === 'PONG_TABS') && event.data.tabs) {
-          window.removeEventListener('message', onMsg);
+        if (!event.data || typeof event.data !== 'object') return;
+        if (event.data.type === 'BIN4RY_EXTENSION_ANNOUNCE' && event.data.extensionId) {
+          discoveredExtensionId = event.data.extensionId;
+          window.RELAY_EXTENSION_ID = event.data.extensionId;
+          try { localStorage.setItem('relay_extension_id', event.data.extensionId); } catch {}
+          trySendDirect(event.data.extensionId);
+        }
+        if (event.data.type === 'BIN4RY_TABS_RESPONSE') {
+          if (!event.data.requestId || event.data.requestId === requestId || event.data.tabs || event.data.total != null || event.data.totalBrowserTabs != null) {
+            done(event.data);
+          }
+        }
+        if ((event.data.type === 'RELAY_EXTENSION_PONG' || event.data.type === 'PONG_TABS') && event.data.tabs) {
           done(event.data);
         }
       };
       window.addEventListener('message', onMsg);
+
+      // 1. Send via window.postMessage to content script bridge
       try {
+        window.postMessage(pingPayload, '*');
+        window.postMessage({ type: 'BIN4RY_EXTENSION_PING' }, '*');
         window.postMessage({ type: 'RELAY_DASHBOARD_PING' }, '*');
       } catch {}
+
+      // 2. Send via chrome.runtime.sendMessage if available
+      function trySendDirect(extId) {
+        if (typeof window.chrome !== 'undefined' && window.chrome?.runtime?.sendMessage) {
+          try {
+            if (extId) {
+              window.chrome.runtime.sendMessage(extId, pingPayload, (resp) => {
+                if (!window.chrome.runtime.lastError && resp && (resp.ok || resp.tabs || resp.total != null || resp.totalBrowserTabs != null)) {
+                  done(resp);
+                }
+              });
+            } else {
+              window.chrome.runtime.sendMessage(pingPayload, (resp) => {
+                if (!window.chrome.runtime.lastError && resp && (resp.ok || resp.tabs || resp.total != null || resp.totalBrowserTabs != null)) {
+                  done(resp);
+                }
+              });
+            }
+          } catch {}
+        }
+      }
+
+      trySendDirect(null);
+      for (const id of knownIds) {
+        trySendDirect(id);
+      }
     });
+  }
+
+  async function pingExtension(timeoutMs = 1500) {
+    return queryExtensionTabs(timeoutMs);
   }
 
   async function getTabsViaApi() {
@@ -472,6 +545,7 @@
     wireDownloadExtensionModal,
     isLoginStageTab,
     getProviderIconHtml,
+    queryExtensionTabs,
     pingExtension,
     getTabsViaApi
   };

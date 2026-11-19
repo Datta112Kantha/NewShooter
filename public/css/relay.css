@@ -172,6 +172,18 @@
   white-space: nowrap;
 }
 
+.btn--secondary {
+  background: var(--surface-inset, #242933);
+  border: 1px solid var(--border, #3b4252);
+  color: var(--text, #d8dee9);
+}
+
+.btn--secondary:hover {
+  background: var(--surface, #2e3440);
+  border-color: var(--border-strong, #4c566a);
+  color: var(--text-strong, #eceff4);
+}
+
 .panel-header-actions .icon-btn--sm {
   width: 24px;
   height: 24px;

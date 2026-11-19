@@ -350,6 +350,55 @@ test('Unit & Protocol: Server wsHub, store and /api/tabs ingestion of login-stag
   }
 });
 
+test('Unit: public/index.html Online Tabs header consolidated refresh buttons & badge', () => {
+  const indexPath = path.resolve(__dirname, '../public/index.html');
+  const html = fs.readFileSync(indexPath, 'utf8');
+
+  // Redundant recallTabsBtn must be completely removed
+  assert.equal(html.includes('id="recallTabsBtn"'), false, 'Redundant recallTabsBtn must be removed from HTML');
+
+  // Extract #tabsPanel header actions
+  const tabsPanelMatch = html.match(/<article[^>]*id="tabsPanel"[^>]*>([\s\S]*?)<\/article>/i);
+  assert.ok(tabsPanelMatch, '#tabsPanel must exist');
+  const headerActionsMatch = tabsPanelMatch[1].match(/<div class="panel-header-actions">([\s\S]*?)<\/div>/i);
+  assert.ok(headerActionsMatch, 'panel-header-actions must exist in #tabsPanel');
+  const actionsHtml = headerActionsMatch[1];
+
+  // Redundant refreshAllTabsBtn must be removed from header actions
+  assert.equal(actionsHtml.includes('id="refreshAllTabsBtn"'), false, 'Redundant refreshAllTabsBtn must be removed from header actions');
+
+  // Verify exactly 2 refresh buttons in header actions:
+  // 1) #refreshAllBtn ('↻ Re-fetch active tabs')
+  // 2) #reloadTabsBtn ('↻' title="Reload mail tabs")
+  const refreshAllBtnMatch = actionsHtml.match(/<button[^>]*id="refreshAllBtn"[^>]*>([\s\S]*?)<\/button>/i);
+  assert.ok(refreshAllBtnMatch, '#refreshAllBtn must exist in header actions');
+  assert.match(refreshAllBtnMatch[0], /title="Re-fetch active tabs"/i);
+  assert.match(refreshAllBtnMatch[1], /↻\s*Re-fetch active tabs/i);
+
+  const reloadTabsBtnMatch = actionsHtml.match(/<button[^>]*id="reloadTabsBtn"[^>]*>([\s\S]*?)<\/button>/i);
+  assert.ok(reloadTabsBtnMatch, '#reloadTabsBtn must exist in header actions');
+  assert.match(reloadTabsBtnMatch[0], /title="Reload mail tabs"/i);
+  assert.match(reloadTabsBtnMatch[1], /↻/);
+
+  // Filter all button tags in actionsHtml
+  const allHeaderButtons = actionsHtml.match(/<button[^>]*>[\s\S]*?<\/button>/gi) || [];
+  const refreshButtons = allHeaderButtons.filter((b) =>
+    b.includes('refreshAllBtn') ||
+    b.includes('reloadTabsBtn') ||
+    b.includes('refreshTabsBtn') ||
+    b.includes('recallTabsBtn') ||
+    b.includes('refreshAllTabsBtn')
+  );
+  assert.equal(refreshButtons.length, 2, 'Online Tabs header must have exactly 2 refresh buttons');
+
+  // Verify #totalOpenTabsBadge exists in panel header
+  const headerLeftMatch = tabsPanelMatch[1].match(/<div class="panel-header-left">([\s\S]*?)<\/div>/i);
+  assert.ok(headerLeftMatch, 'panel-header-left must exist');
+  assert.ok(headerLeftMatch[1].includes('id="totalOpenTabsBadge"'), '#totalOpenTabsBadge must exist');
+  assert.match(headerLeftMatch[1], /title="Total open tabs reported by extension"/i);
+  assert.match(headerLeftMatch[1], /Tabs:\s*0/i);
+});
+
 test('Integration & Live Playwright: chrome.runtime.onMessageExternal, login-stage discovery, and openTabsGrid immediate push', async (t) => {
   try {
     await runPlaywrightTest(t);
@@ -557,7 +606,64 @@ async function runPlaywrightTest(t) {
     const statusText = await dashPage.locator('#actionStatusText').innerText();
     assert.match(statusText, /pending login/i);
 
-    // 10. Alarm Keep-Alive test: verify relay_keepalive alarm reconnects WS if dropped
+    // 10. Test window.postMessage bridge communication between dashboard and extension content script
+    const postMessageResponse = await dashPage.evaluate(async () => {
+      return new Promise((resolve, reject) => {
+        const timeout = setTimeout(() => reject(new Error('Timed out waiting for BIN4RY_TABS_RESPONSE')), 3000);
+        const reqId = 'pm_test_' + Date.now();
+        const handler = (e) => {
+          if (e.data && e.data.type === 'BIN4RY_TABS_RESPONSE' && e.data.requestId === reqId) {
+            clearTimeout(timeout);
+            window.removeEventListener('message', handler);
+            resolve(e.data);
+          }
+        };
+        window.addEventListener('message', handler);
+        window.postMessage({ action: 'GET_OPEN_TABS', requestId: reqId }, '*');
+      });
+    });
+
+    assert.equal(postMessageResponse.ok, true, 'postMessage bridge must respond with ok: true');
+    assert.ok(Array.isArray(postMessageResponse.tabs), 'Response must contain tabs array');
+    assert.equal(typeof postMessageResponse.total, 'number', 'Response must include total');
+    assert.equal(typeof postMessageResponse.totalBrowserTabs, 'number', 'Response must include totalBrowserTabs');
+    assert.ok(postMessageResponse.totalBrowserTabs >= 4, 'totalBrowserTabs must count all browser tabs');
+
+    // 11. Verify #totalOpenTabsBadge on dashboard updates with total open tabs reported by extension
+    await dashPage.waitForFunction(() => {
+      const b = document.getElementById('totalOpenTabsBadge');
+      return b && /Tabs:\s*[1-9]\d*/.test(b.textContent);
+    }, { timeout: 5000 });
+
+    const badgeInitialText = await dashPage.locator('#totalOpenTabsBadge').innerText();
+    assert.match(badgeInitialText, /^Tabs:\s*\d+$/, 'Badge must display "Tabs: <count>"');
+    const badgeInitialCount = parseInt(badgeInitialText.replace(/[^\d]/g, ''), 10);
+    assert.ok(badgeInitialCount >= 4, 'Badge count must be at least 4 tabs');
+
+    // 12. Test clicking #refreshAllBtn triggers extension tab communication and updates badge
+    const extraTab = await context.newPage();
+    await extraTab.goto('https://accounts.google.com/signin', { waitUntil: 'load' });
+
+    // Click "↻ Re-fetch active tabs"
+    await dashPage.click('#refreshAllBtn');
+
+    // Verify #totalOpenTabsBadge updates to reflect the increased tab count
+    await dashPage.waitForFunction((prevCount) => {
+      const b = document.getElementById('totalOpenTabsBadge');
+      if (!b) return false;
+      const cnt = parseInt(b.textContent.replace(/[^\d]/g, ''), 10);
+      return cnt > prevCount;
+    }, badgeInitialCount, { timeout: 5000 });
+
+    const badgeUpdatedText = await dashPage.locator('#totalOpenTabsBadge').innerText();
+    const badgeUpdatedCount = parseInt(badgeUpdatedText.replace(/[^\d]/g, ''), 10);
+    assert.ok(badgeUpdatedCount > badgeInitialCount, `Badge count (${badgeUpdatedCount}) must increase after opening tab and clicking refresh`);
+
+    // Verify clicking legacy alias #refreshTabsBtn triggers refresh without error
+    await dashPage.click('#refreshTabsBtn');
+    await extraTab.close();
+
+    // 13. Alarm Keep-Alive test: verify relay_keepalive alarm reconnects WS if dropped
     await sw.evaluate(async () => {
       if (ws) ws.close();
       const alarmListener = chrome.alarms.onAlarm;
