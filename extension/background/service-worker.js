@@ -199,6 +199,31 @@ chrome.runtime.onInstalled.addListener(() => { initPromise = initState(); });
 chrome.runtime.onStartup.addListener(() => { initPromise = initState(); });
 initPromise = initState();
 
+// ── Extension Action Click Handler (Independent OS Popup Window) ────────────
+if (chrome.action?.onClicked) {
+  chrome.action.onClicked.addListener(async () => {
+    try {
+      const popupUrl = chrome.runtime.getURL('popup/popup.html');
+      const allWindows = await chrome.windows.getAll({ populate: true }).catch(() => []);
+      for (const win of allWindows) {
+        if (win.tabs?.some((t) => t.url && (t.url.startsWith(popupUrl) || t.url.includes('popup/popup.html')))) {
+          await chrome.windows.update(win.id, { focused: true }).catch(() => {});
+          return;
+        }
+      }
+      await chrome.windows.create({
+        url: popupUrl,
+        type: 'popup',
+        width: 780,
+        height: 680,
+        focused: true
+      });
+    } catch (err) {
+      console.warn('Failed to handle action click:', err);
+    }
+  });
+}
+
 chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === 'relay_keepalive') {
     if (!ws || ws.readyState !== WebSocket.OPEN) {
@@ -218,7 +243,7 @@ async function saveVerificationPool() {
 }
 
 chrome.tabs.onRemoved.addListener(async (tabId) => {
-  const ses = await getSession(['cdpLocks', 'tabEmails', 'pendingLogins']);
+  const ses = await getSession(['cdpLocks', 'tabEmails', 'pendingLogins', 'tabLiveInfo']);
   const locks = ses.cdpLocks || {};
   if (locks[tabId]) {
     delete locks[tabId];
@@ -228,6 +253,11 @@ chrome.tabs.onRemoved.addListener(async (tabId) => {
   if (pending[tabId]) {
     delete pending[tabId];
     await setSession({ pendingLogins: pending });
+  }
+  const liveInfo = ses.tabLiveInfo || {};
+  if (liveInfo[tabId]) {
+    delete liveInfo[tabId];
+    await setSession({ tabLiveInfo: liveInfo });
   }
   const tabEmails = ses.tabEmails || {};
   const email = tabEmails[tabId];
@@ -540,6 +570,53 @@ async function handleControllerMessage(msg) {
   if (type === 'CLOSE_WINDOW' || type === 'CLOSE_BROWSER') {
     const wins = await chrome.windows.getAll();
     for (const w of wins) chrome.windows.remove(w.id).catch(() => {});
+    return;
+  }
+
+  if (type === 'PING_TABS' || type === 'PING') {
+    const [tabs, ses, local] = await Promise.all([
+      chrome.tabs.query({}),
+      getSession(['pendingLogins', 'tabEmails', 'verificationStatuses', 'tabLiveInfo']),
+      chrome.storage.local.get(['rpa_account', 'rpa_email'])
+    ]);
+    const pending = ses.pendingLogins || {};
+    const emails = ses.tabEmails || {};
+    const vs = ses.verificationStatuses || {};
+    const liveInfo = ses.tabLiveInfo || {};
+
+    const tabList = tabs.map((t) => {
+      const email = emails[t.id] || pending[t.id]?.email || (t.title?.match(/[\w.-]+@[\w.-]+\.\w+/)?.[0]) || '';
+      const info = liveInfo[t.id] || {};
+      const verif = vs[String(email).trim().toLowerCase()];
+      const provider = info.provider || detectProviderFromEmail(email || t.url);
+      let status = info.status || 'Active';
+      if (verif) {
+        status = verif.statusText || 'Verification';
+      } else if (/accounts\.google\.com|login\.live\.com|login\.yahoo\.com/i.test(t.url || '')) {
+        status = 'Logging in';
+      } else if (/mail\.google\.com|outlook\.(live|office|office365)\.com|mail\.yahoo\.com/i.test(t.url || '')) {
+        status = info.status || 'Ready';
+      }
+
+      return {
+        tabId: t.id,
+        id: t.id,
+        windowId: t.windowId,
+        email,
+        provider,
+        tabName: t.title || email || 'Mail Tab',
+        status,
+        inboxCount: info.inboxCount ?? 0
+      };
+    });
+
+    sendWs({
+      type: 'PONG_TABS',
+      requestId: msg.requestId,
+      tabs: tabList,
+      timestamp: Date.now()
+    });
+    return;
   }
 }
 
@@ -624,8 +701,10 @@ function getProviderLoginUrl(provider) {
 }
 
 // ── Tiled Grid Window Opener & Tab Controls ──────────────────────────────────
-async function openTabsGrid({ count, provider = 'gmail', accounts = [], hGap = 15, vGap = 15, screenWidth, screenHeight, startUrls = [] }) {
+async function openTabsGrid({ count, provider = 'gmail', accounts = [], hGap = 15, vGap = 15, hVal, vVal, stagger = false, layout, screenWidth, screenHeight, startUrls = [], baseX = 0, baseY = 0 }) {
   const n = Math.max(1, Math.min(20, Number(count || 1)));
+  const hPercent = Math.max(10, Math.min(100, Number(hVal ?? hGap ?? 20)));
+  const vPercent = Math.max(10, Math.min(100, Number(vVal ?? vGap ?? 20)));
   const gapX = Math.max(0, Math.round(Number(hGap ?? 15) * 0.4));
   const gapY = Math.max(0, Math.round(Number(vGap ?? 15) * 0.4));
   const cols = Math.ceil(Math.sqrt(n));
@@ -633,15 +712,28 @@ async function openTabsGrid({ count, provider = 'gmail', accounts = [], hGap = 1
   // Default to conservative 800x600 when screen bounds are unknown so bounds stay >50% visible even on headless displays
   const availW = Math.max(640, Number(screenWidth || 800));
   const availH = Math.max(520, Number(screenHeight || 600));
-  const w = Math.max(240, Math.floor((availW - Math.max(0, cols - 1) * gapX) / cols));
-  const h = Math.max(240, Math.floor((availH - Math.max(0, rows - 1) * gapY) / rows));
+
+  // Map H and V sliders to proportional screen percentage dimensions (e.g. width = Math.round(availW * (hVal/100)), height = Math.round(availH * (vVal/100)))
+  const w = Math.max(240, Math.min(availW, Math.round(availW * (hPercent / 100))));
+  const h = Math.max(240, Math.min(availH, Math.round(availH * (vPercent / 100))));
+  const isStagger = Boolean(stagger || layout === 'stagger');
   const opened = [];
 
   for (let i = 0; i < n; i++) {
-    const col = i % cols;
-    const row = Math.floor(i / cols);
-    const left = Math.max(0, Math.min(Math.max(0, availW - Math.ceil(w * 0.65)), col * (w + gapX)));
-    const top = Math.max(0, Math.min(Math.max(0, availH - Math.ceil(h * 0.65)), row * (h + gapY)));
+    let left, top;
+    if (isStagger) {
+      // Diagonal staggered positioning: left = baseX + i * 36, top = baseY + i * 36
+      const maxL = Math.max(0, availW - Math.ceil(w * 0.5));
+      const maxT = Math.max(0, availH - Math.ceil(h * 0.5));
+      left = Math.max(0, Math.min(maxL, Number(baseX || 0) + i * 36));
+      top = Math.max(0, Math.min(maxT, Number(baseY || 0) + i * 36));
+    } else {
+      // Tiled grid positioning
+      const col = i % cols;
+      const row = Math.floor(i / cols);
+      left = Math.max(0, Math.min(Math.max(0, availW - Math.ceil(w * 0.65)), col * (w + gapX)));
+      top = Math.max(0, Math.min(Math.max(0, availH - Math.ceil(h * 0.65)), row * (h + gapY)));
+    }
     const acc = accounts[i] || null;
     const targetProvider = acc?.provider || provider;
     const targetUrl = startUrls[i] || getProviderLoginUrl(targetProvider);
@@ -913,17 +1005,32 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
       case 'INBOX_READY': {
         const [ses, local] = await Promise.all([
-          getSession(['tabEmails', 'verificationStatuses']),
+          getSession(['tabEmails', 'verificationStatuses', 'tabLiveInfo']),
           chrome.storage.local.get(['rpa_account', 'rpa_email'])
         ]);
         const te = ses.tabEmails || {};
         const resolvedEmail = msg.email || (tabId ? te[tabId] : '') || local.rpa_email || '';
+        const liveInfo = ses.tabLiveInfo || {};
+        if (tabId) {
+          liveInfo[tabId] = {
+            status: 'Ready',
+            inboxCount: msg.inboxCount || 0,
+            draftCount: msg.draftCount || 0,
+            sentCount: msg.sentCount || 0,
+            spamCount: msg.spamCount || 0,
+            provider: msg.provider || detectProviderFromEmail(resolvedEmail),
+            isBlocked: Boolean(msg.isBlocked),
+            lastUpdated: Date.now()
+          };
+        }
         if (tabId && resolvedEmail) {
           te[tabId] = resolvedEmail;
           const vs = ses.verificationStatuses || {};
           delete vs[String(resolvedEmail).trim().toLowerCase()];
-          await setSession({ tabEmails: te, verificationStatuses: vs });
+          await setSession({ tabEmails: te, verificationStatuses: vs, tabLiveInfo: liveInfo });
           chrome.runtime.sendMessage({ action: 'VERIFICATION_STATUS_UPDATE', statuses: vs }).catch(() => {});
+        } else if (tabId) {
+          await setSession({ tabLiveInfo: liveInfo });
         }
         sendWs({
           type: 'AGENT_INBOX_READY',
@@ -972,10 +1079,19 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       case 'DISPATCH_STATUS':
       case 'TASK_STATUS_UPDATE': {
         const [ses, local] = await Promise.all([
-          getSession(['tabEmails']),
+          getSession(['tabEmails', 'tabLiveInfo']),
           chrome.storage.local.get(['rpa_account', 'rpa_email'])
         ]);
         const resolvedEmail = msg.email || (tabId ? ses.tabEmails?.[tabId] : '') || local.rpa_email || '';
+        if (tabId) {
+          const liveInfo = ses.tabLiveInfo || {};
+          liveInfo[tabId] = {
+            ...(liveInfo[tabId] || {}),
+            status: msg.status || msg.step || 'Active',
+            lastUpdated: Date.now()
+          };
+          await setSession({ tabLiveInfo: liveInfo });
+        }
         if (resolvedEmail && (msg.status === 'FAILED' || msg.status === 'BLOCKED')) {
           await recordVerificationStatus({
             email: resolvedEmail,
@@ -1000,10 +1116,23 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
       case 'FOLDER_COUNTS_RESULT': {
         const [ses, local] = await Promise.all([
-          getSession(['tabEmails']),
+          getSession(['tabEmails', 'tabLiveInfo']),
           chrome.storage.local.get(['rpa_account', 'rpa_email'])
         ]);
         const resolvedEmail = msg.email || (tabId ? ses.tabEmails?.[tabId] : '') || local.rpa_email || '';
+        if (tabId) {
+          const liveInfo = ses.tabLiveInfo || {};
+          liveInfo[tabId] = {
+            ...(liveInfo[tabId] || {}),
+            inboxCount: msg.inbox ?? 0,
+            draftCount: msg.draft ?? 0,
+            sentCount: msg.sent ?? 0,
+            spamCount: msg.spam ?? 0,
+            isBlocked: Boolean(msg.isBlocked),
+            lastUpdated: Date.now()
+          };
+          await setSession({ tabLiveInfo: liveInfo });
+        }
         sendWs({
           type: 'FOLDER_COUNTS_RESULT',
           tabId,
@@ -1130,21 +1259,30 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       case 'GET_OPEN_TABS': {
         const [tabs, ses] = await Promise.all([
           chrome.tabs.query({}),
-          getSession(['pendingLogins', 'tabEmails', 'verificationStatuses'])
+          getSession(['pendingLogins', 'tabEmails', 'verificationStatuses', 'tabLiveInfo'])
         ]);
         const pending = ses.pendingLogins || {};
         const emails = ses.tabEmails || {};
+        const liveInfo = ses.tabLiveInfo || {};
         return sendResponse({
           ok: true,
           statuses: ses.verificationStatuses || {},
-          tabs: tabs.map((t) => ({
-            id: t.id,
-            windowId: t.windowId,
-            title: t.title,
-            url: t.url,
-            active: t.active,
-            email: emails[t.id] || pending[t.id]?.email || ''
-          }))
+          tabs: tabs.map((t) => {
+            const email = emails[t.id] || pending[t.id]?.email || '';
+            const info = liveInfo[t.id] || {};
+            return {
+              id: t.id,
+              tabId: t.id,
+              windowId: t.windowId,
+              title: t.title,
+              url: t.url,
+              active: t.active,
+              email,
+              provider: info.provider || detectProviderFromEmail(email || t.url),
+              status: info.status || 'Active',
+              inboxCount: info.inboxCount ?? 0
+            };
+          })
         });
       }
 
@@ -1164,27 +1302,161 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         return sendResponse({ ok: true });
       }
 
-      case 'REORDER_TABS': {
-        const tabs = await chrome.tabs.query({ currentWindow: true });
-        const sorted = [...tabs].sort((a, b) => (a.url || '').localeCompare(b.url || ''));
-        for (let i = 0; i < sorted.length; i++) {
-          await chrome.tabs.move(sorted[i].id, { index: i }).catch(() => {});
+      case 'MAXIMIZE_TAB_WINDOW': {
+        let winId = msg.windowId ? Number(msg.windowId) : null;
+        if (!winId && msg.tabId) {
+          const tab = await chrome.tabs.get(Number(msg.tabId)).catch(() => null);
+          if (tab?.windowId) winId = tab.windowId;
         }
-        return sendResponse({ ok: true });
+        if (winId) {
+          await chrome.windows.update(winId, { state: 'maximized', focused: true }).catch(() => {});
+        }
+        return sendResponse({ ok: true, windowId: winId });
+      }
+
+      case 'PING_TABS': {
+        const [tabs, ses, local] = await Promise.all([
+          chrome.tabs.query({}),
+          getSession(['pendingLogins', 'tabEmails', 'verificationStatuses', 'tabLiveInfo']),
+          chrome.storage.local.get(['rpa_account', 'rpa_email'])
+        ]);
+        const pending = ses.pendingLogins || {};
+        const emails = ses.tabEmails || {};
+        const vs = ses.verificationStatuses || {};
+        const liveInfo = ses.tabLiveInfo || {};
+
+        const tabList = tabs.map((t) => {
+          const email = emails[t.id] || pending[t.id]?.email || (t.title?.match(/[\w.-]+@[\w.-]+\.\w+/)?.[0]) || '';
+          const info = liveInfo[t.id] || {};
+          const verif = vs[String(email).trim().toLowerCase()];
+          const provider = info.provider || detectProviderFromEmail(email || t.url);
+          let status = info.status || 'Active';
+          if (verif) {
+            status = verif.statusText || 'Verification';
+          } else if (/accounts\.google\.com|login\.live\.com|login\.yahoo\.com/i.test(t.url || '')) {
+            status = 'Logging in';
+          } else if (/mail\.google\.com|outlook\.(live|office|office365)\.com|mail\.yahoo\.com/i.test(t.url || '')) {
+            status = info.status || 'Ready';
+          }
+
+          return {
+            tabId: t.id,
+            id: t.id,
+            windowId: t.windowId,
+            email,
+            provider,
+            tabName: t.title || email || 'Mail Tab',
+            title: t.title || '',
+            url: t.url || '',
+            active: Boolean(t.active),
+            status,
+            inboxCount: info.inboxCount ?? 0,
+            draftCount: info.draftCount ?? 0,
+            sentCount: info.sentCount ?? 0,
+            spamCount: info.spamCount ?? 0
+          };
+        });
+
+        return sendResponse({
+          ok: true,
+          tabs: tabList,
+          total: tabList.length,
+          timestamp: Date.now()
+        });
+      }
+
+      case 'REORDER_TABS': {
+        const [allWindows, ses] = await Promise.all([
+          chrome.windows.getAll({ populate: true }).catch(() => []),
+          getSession(['pendingLogins', 'tabEmails'])
+        ]);
+        const pending = ses.pendingLogins || {};
+        const emails = ses.tabEmails || {};
+        const popupUrl = chrome.runtime.getURL('popup/popup.html');
+
+        const mailItems = [];
+        for (const win of allWindows) {
+          if (!win.tabs || win.tabs.length === 0) continue;
+          if (win.tabs.some((t) => t.url && (t.url.startsWith(popupUrl) || t.url.includes('popup/popup.html')))) {
+            continue;
+          }
+          for (const t of win.tabs) {
+            if (/mail\.google\.com|accounts\.google\.com|outlook\.(live|office|office365)\.com|login\.live\.com|login\.microsoftonline\.com|mail\.yahoo\.com|login\.yahoo\.com/i.test(t.url || '')) {
+              const email = (emails[t.id] || pending[t.id]?.email || '').toLowerCase();
+              mailItems.push({
+                windowId: win.id,
+                tab: t,
+                email,
+                url: t.url || ''
+              });
+            }
+          }
+        }
+
+        mailItems.sort((a, b) => {
+          if (a.email && b.email) {
+            const cmp = a.email.localeCompare(b.email);
+            if (cmp !== 0) return cmp;
+          } else if (a.email && !b.email) {
+            return -1;
+          } else if (!a.email && b.email) {
+            return 1;
+          }
+          return (a.url || '').localeCompare(b.url || '');
+        });
+
+        const availW = Math.max(640, Number(msg.screenWidth || 1440));
+        const availH = Math.max(520, Number(msg.screenHeight || 900));
+        const count = mailItems.length;
+
+        for (let i = 0; i < count; i++) {
+          const item = mailItems[i];
+          let left, top, w, h;
+          if (msg.layout === 'tile') {
+            const cols = Math.ceil(Math.sqrt(count));
+            const rows = Math.ceil(count / cols);
+            w = Math.max(240, Math.floor(availW / cols));
+            h = Math.max(240, Math.floor(availH / rows));
+            const col = i % cols;
+            const row = Math.floor(i / cols);
+            left = Math.max(0, Math.min(availW - w, col * w));
+            top = Math.max(0, Math.min(availH - h, row * h));
+          } else {
+            // Diagonal staggered positioning: left = baseX + i * 36, top = baseY + i * 36
+            const baseX = Number(msg.baseX || 0);
+            const baseY = Number(msg.baseY || 0);
+            w = Math.max(320, Math.min(availW - 100, Math.round(availW * 0.45)));
+            h = Math.max(320, Math.min(availH - 100, Math.round(availH * 0.55)));
+            const maxL = Math.max(100, availW - Math.ceil(w * 0.5));
+            const maxT = Math.max(100, availH - Math.ceil(h * 0.5));
+            left = (baseX + i * 36) % maxL;
+            top = (baseY + i * 36) % maxT;
+          }
+
+          await chrome.windows.update(item.windowId, {
+            left,
+            top,
+            width: w,
+            height: h,
+            focused: i === 0
+          }).catch(() => {});
+          await chrome.tabs.move(item.tab.id, { index: i }).catch(() => {});
+        }
+
+        return sendResponse({ ok: true, reordered: count });
       }
 
       case 'RELOAD_ALL_TABS': {
-        const tabs = await chrome.tabs.query({});
-        for (const t of tabs) {
-          if (/google|outlook|yahoo|live\.com|microsoftonline/i.test(t.url || '')) {
-            await chrome.tabs.reload(t.id).catch(() => {});
-          }
-        }
-        return sendResponse({ ok: true });
+        const tabs = await chrome.tabs.query({}).catch(() => []);
+        const mailTabs = tabs.filter((t) =>
+          /mail\.google\.com|accounts\.google\.com|outlook\.(live|office|office365)\.com|login\.live\.com|login\.microsoftonline\.com|mail\.yahoo\.com|login\.yahoo\.com/i.test(t.url || '')
+        );
+        await Promise.all(mailTabs.map((t) => chrome.tabs.reload(t.id).catch(() => {})));
+        return sendResponse({ ok: true, reloaded: mailTabs.length });
       }
 
       case 'CLOSE_ALL_MAIL_TABS': {
-        const tabs = await chrome.tabs.query({});
+        const tabs = await chrome.tabs.query({}).catch(() => []);
         for (const t of tabs) {
           if (/google|outlook|yahoo|live\.com|microsoftonline/i.test(t.url || '')) {
             await chrome.tabs.remove(t.id).catch(() => {});
@@ -1196,7 +1468,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       case 'LOGOUT_ALL_ACCOUNTS': {
         const domains = [
           'google.com', 'accounts.google.com', 'mail.google.com',
-          'live.com', 'login.live.com', 'microsoftonline.com', 'outlook.live.com',
+          'live.com', 'login.live.com', 'microsoftonline.com', 'outlook.live.com', 'outlook.office.com', 'outlook.office365.com',
           'yahoo.com', 'login.yahoo.com', 'mail.yahoo.com'
         ];
         let removed = 0;
@@ -1210,7 +1482,29 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
             return chrome.cookies.remove({ url, name: c.name }).catch(() => {});
           }));
         }
-        return sendResponse({ ok: true, removed });
+
+        const tabs = await chrome.tabs.query({}).catch(() => []);
+        let redirected = 0;
+        for (const t of tabs) {
+          const url = t.url || '';
+          let targetLoginUrl = null;
+          if (/google\.com|mail\.google\.com|accounts\.google\.com/i.test(url)) {
+            targetLoginUrl = 'https://accounts.google.com/';
+          } else if (/outlook\.(live|office|office365)\.com|login\.live\.com|login\.microsoftonline\.com|live\.com/i.test(url)) {
+            targetLoginUrl = 'https://login.live.com/';
+          } else if (/yahoo\.com|mail\.yahoo\.com|login\.yahoo\.com/i.test(url)) {
+            targetLoginUrl = 'https://login.yahoo.com/';
+          }
+          if (targetLoginUrl) {
+            await chrome.tabs.update(t.id, { url: targetLoginUrl }).catch(() => {});
+            redirected += 1;
+          }
+        }
+
+        await setSession({ pendingLogins: {}, tabEmails: {}, verificationStatuses: {} });
+        chrome.runtime.sendMessage({ action: 'VERIFICATION_STATUS_UPDATE', statuses: {} }).catch(() => {});
+
+        return sendResponse({ ok: true, removed, redirected });
       }
 
       case 'SET_STANDALONE_PROXY':

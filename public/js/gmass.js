@@ -158,9 +158,27 @@
       if (r.gmass?.sentLog) renderLog(r.gmass.sentLog);
     });
 
+    document.getElementById('gmResumeBtn')?.addEventListener('click', async () => {
+      const r = await C.apiJson('/api/gmass/resume', { method: 'POST', body: '{}' });
+      const status = document.getElementById('gmassStatusPill');
+      status.innerHTML = 'Status: <strong>Resumed</strong>';
+      C.showToast('GMASS Resumed', 'Campaign dispatch resumed.', 'success');
+      if (r.gmass?.sentLog) renderLog(r.gmass.sentLog);
+    });
+
+    document.getElementById('gmStopBtn')?.addEventListener('click', async () => {
+      const r = await C.apiJson('/api/gmass/stop', { method: 'POST', body: '{}' });
+      const status = document.getElementById('gmassStatusPill');
+      status.innerHTML = 'Status: <strong>Stopped</strong>';
+      C.showToast('GMASS Stopped', 'Campaign stopped.', 'info');
+      if (r.gmass?.sentLog) renderLog(r.gmass.sentLog);
+    });
+
     document.getElementById('gmBlastBtn').addEventListener('click', async () => {
       const status = document.getElementById('gmassStatusPill');
       status.innerHTML = 'Status: <strong>Blasting...</strong>';
+      const delayInp = document.getElementById('gmDelayInterval');
+      const staggerMs = delayInp ? (parseInt(delayInp.value, 10) || 0) : (isGmass4 ? 100 : 300);
       const r = await C.apiJson('/api/gmass/send', {
         method: 'POST',
         body: JSON.stringify({
@@ -172,7 +190,7 @@
           htmlOnly: htmlOnlyCb.checked,
           selectedDomains,
           selectedFiles: [...selectedFileIds],
-          staggerMs: isGmass4 ? 100 : 300,
+          staggerMs,
           watermark: document.getElementById('gmWatermark').value,
           filename: document.getElementById('gmFilename').value,
           fromName: document.getElementById('gmFromName').value
@@ -222,7 +240,7 @@
               onlineTabs = msg.onlineTabs;
               updateDomainBadge();
             }
-            if ((msg.type === 'GMASS_PROGRESS' || msg.type === 'GMASS_PAUSED') && msg.gmass) {
+            if ((msg.type === 'GMASS_PROGRESS' || msg.type === 'GMASS_PAUSED' || msg.type === 'GMASS_RESUMED' || msg.type === 'GMASS_STOPPED') && msg.gmass) {
               if (Array.isArray(msg.gmass.sentLog)) renderLog(msg.gmass.sentLog);
               const statusEl = document.getElementById('gmassStatusPill');
               if (statusEl && msg.gmass.statusText) {

@@ -526,9 +526,14 @@
       r.checked = r.value === layoutVal;
     }
 
-    document.getElementById('metricLimit').textContent = String(q.dailyLimit ?? 60000);
-    document.getElementById('metricSent').textContent = String(q.sentToday ?? 0);
-    document.getElementById('metricExpiry').textContent = `${q.expiryHours ?? 3} hours left`;
+    const sentToday = q.sentToday ?? 0;
+    const dailyLimit = q.dailyLimit ?? 60000;
+    const metricLimitEl = document.getElementById('metricLimit');
+    if (metricLimitEl) metricLimitEl.textContent = String(dailyLimit);
+    const metricSentEl = document.getElementById('metricSent');
+    if (metricSentEl) metricSentEl.textContent = `${sentToday} / ${dailyLimit}`;
+    const metricExpiryEl = document.getElementById('metricExpiry');
+    if (metricExpiryEl) metricExpiryEl.textContent = `${q.expiryHours ?? 3} hours left`;
 
     const sendBtn = document.getElementById('sendButton');
     const limitReached = !s.forceStart && (q.sentToday >= q.dailyLimit);
@@ -579,15 +584,40 @@
     updateCounts();
   }
 
+  let tabPingTimer = null;
+  function startTabPingPolling() {
+    if (tabPingTimer) clearInterval(tabPingTimer);
+    tabPingTimer = setInterval(() => {
+      if (dashboardWs && dashboardWs.readyState === WebSocket.OPEN) {
+        dashboardWs.send(JSON.stringify({ type: 'PING_TABS' }));
+      } else {
+        C.relayAction('refreshTabs').then((r) => {
+          if (r?.onlineTabs) {
+            state.onlineTabs = r.onlineTabs;
+            renderTabsTable();
+            updateDockEstimate();
+          }
+        }).catch(() => {});
+      }
+    }, 2500);
+  }
+
   function connectDashboardWs() {
     const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const url = `${proto}//${window.location.host}/ws/dashboard`;
     dashboardWs = new WebSocket(url);
+    dashboardWs.addEventListener('open', () => {
+      try {
+        dashboardWs.send(JSON.stringify({ type: 'PING_TABS' }));
+      } catch {}
+      startTabPingPolling();
+    });
     dashboardWs.addEventListener('message', (evt) => {
       try {
         const msg = JSON.parse(evt.data);
-        if (msg.onlineTabs) {
-          state.onlineTabs = msg.onlineTabs;
+        const tabs = msg.onlineTabs || msg.tabs;
+        if (tabs) {
+          state.onlineTabs = tabs;
           renderTabsTable();
           updateDockEstimate();
         }
@@ -699,7 +729,27 @@
     }
 
     // Tabs toolbar actions
-    document.getElementById('refreshTabsBtn').addEventListener('click', () => refreshDashboard());
+    async function performActiveTabScan() {
+      if (dashboardWs && dashboardWs.readyState === WebSocket.OPEN) {
+        dashboardWs.send(JSON.stringify({ type: 'PING_TABS' }));
+      }
+      try {
+        const r = await C.relayAction('refreshTabs');
+        if (r?.onlineTabs) {
+          state.onlineTabs = r.onlineTabs;
+          renderTabsTable();
+          updateDockEstimate();
+        }
+      } catch {}
+      await refreshDashboard();
+      C.showToast('Tabs Refreshed', `Active scan completed · ${state.onlineTabs?.length || 0} tabs online`);
+    }
+
+    document.getElementById('refreshTabsBtn').addEventListener('click', performActiveTabScan);
+    const refreshAllTabsBtn = document.getElementById('refreshAllTabsBtn');
+    if (refreshAllTabsBtn) {
+      refreshAllTabsBtn.addEventListener('click', performActiveTabScan);
+    }
     document.getElementById('getFoldersAllBtn').addEventListener('click', async () => {
       await C.relayAction('getFolders', {});
       C.showToast('Folders', 'Requested folder counts across all online tabs');

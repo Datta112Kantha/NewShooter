@@ -85,6 +85,7 @@ async function convertHtml({ html, format = 'pdf', filename = 'document', waterm
 
     return {
       filename: `${safeBase}.${ext}`,
+      format: ext,
       mimeType,
       size: buffer.length,
       buffer,

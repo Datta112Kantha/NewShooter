@@ -85,6 +85,9 @@
         <label style="display:inline-flex;align-items:center;gap:5px;font-size:12px;cursor:pointer">
           <input id="gmHtmlOnly" type="checkbox"> HTML only
         </label>
+        <label style="display:inline-flex;align-items:center;gap:4px;font-size:12px" title="Delay interval between dispatched messages (ms)">
+          Delay <input id="gmDelayInterval" class="field-input" style="width:75px" type="number" value="300" min="0" step="50" placeholder="ms">
+        </label>
         <input id="gmWatermark" class="field-input" style="width:120px" type="text" placeholder="Watermark">
         <input id="gmFilename" class="field-input" style="width:140px" type="text" value="invoice_{orderno}" placeholder="Filename">
         <input id="gmFromName" class="field-input" style="width:125px" type="text" placeholder="From">
@@ -127,9 +130,11 @@
 
     <footer class="gmass-foot">
       <div style="font-size:12px;color:var(--text-muted)">Dispatches seamlessly across connected Relay accounts &amp; proxies</div>
-      <div style="display:flex;gap:8px">
-        <button type="button" id="gmPauseBtn" class="btn">Pause</button>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
         <button type="button" id="gmBlastBtn" class="btn btn--primary">Blast</button>
+        <button type="button" id="gmPauseBtn" class="btn">Pause</button>
+        <button type="button" id="gmResumeBtn" class="btn">Resume</button>
+        <button type="button" id="gmStopBtn" class="btn btn--danger">Stop</button>
       </div>
     </footer>
   </main>

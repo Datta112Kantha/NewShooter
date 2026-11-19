@@ -106,6 +106,7 @@ const PREDEFINED_TAG_CATALOG = [
   { key: '{ip}', category: 'TECH', desc: 'Sample IPv4 address', example: '198.51.100.42' },
   { key: '{uuid}', category: 'TECH', desc: 'Random UUID v4', example: '550e8400-e29b-41d4-a716-446655440000' },
   { key: '{url}', category: 'TECH', desc: 'Sample HTTPS link', example: 'https://northstardigital.example/portal' },
+  { key: '{random_digit}', category: 'RANDOM', desc: 'Single random digit 0-9', example: '7' },
   { key: '{1-100}', category: 'RANDOM', desc: 'Random integer in range [min-max]', example: '42' }
 ];
 
@@ -273,6 +274,8 @@ function resolveCustomTagValue(tagKey, resolvedMap, customTags, tagCounters, vis
   let chosen;
   if (def.type === 'random') {
     chosen = String(pick(def.values));
+  } else if (def.type === 'static') {
+    chosen = String(def.values[0] ?? '');
   } else {
     const cur = Number(tagCounters[tagKey] || 0);
     chosen = String(def.values[cur % def.values.length]);
@@ -340,9 +343,12 @@ function processTags(recipientEmail, payload, options = {}) {
 
   const rangeCache = cache ? cache.ranges : {};
   const escapedKeys = Object.keys(resolvedMap).map((k) => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
-  const tagRegex = new RegExp([...escapedKeys, '\\{\\s*\\d+\\s*-\\s*\\d+\\s*\\}'].join('|'), 'g');
+  const tagRegex = new RegExp([...escapedKeys, '\\{random_digit\\}', '\\{digit\\}', '\\{\\s*\\d+\\s*-\\s*\\d+\\s*\\}'].join('|'), 'g');
 
   function replaceToken(tok) {
+    if (tok === '{random_digit}' || tok === '{digit}') {
+      return String(randInt(0, 9));
+    }
     if (Object.prototype.hasOwnProperty.call(resolvedMap, tok)) {
       return resolvedMap[tok];
     }

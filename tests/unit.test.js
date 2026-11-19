@@ -252,7 +252,7 @@ test('credentials parser, table paste converter, segment classifier, error class
 });
 
 test('tagEngine resolves nested spintax, protects CSS style blocks, evaluates 63 tags, ranges, and detects circular custom tags', () => {
-  assert.equal(PREDEFINED_TAG_CATALOG.length, 62);
+  assert.equal(PREDEFINED_TAG_CATALOG.length, 63);
 
   // Nested spintax
   const spun = resolveSpintax('{Hello {world|there}|Hi friend}');

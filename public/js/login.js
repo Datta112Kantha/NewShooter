@@ -67,8 +67,8 @@
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: params.toString()
       });
-      const data = await resp.json();
-      if (data.status === 'ok') {
+      const data = await resp.json().catch(() => ({}));
+      if (resp.ok && data.status === 'ok') {
         window.location.href = data.redirect || '/V3/';
         return;
       }
@@ -84,7 +84,11 @@
         limitGo.focus();
         return;
       }
-      errorBox.textContent = data.error || 'Authentication failed';
+      if (data.csrfToken) {
+        csrfInput.value = data.csrfToken;
+      }
+      const errMsg = data.error || data.message || 'Authentication failed';
+      errorBox.textContent = errMsg;
       errorBox.hidden = false;
     } catch (err) {
       errorBox.textContent = 'Network error: ' + err.message;

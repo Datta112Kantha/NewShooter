@@ -180,16 +180,9 @@ function createServer(options = {}) {
   const wsHub = new WsHub(store, { browserManager });
   const shootTimers = new Set();
   const pendingShoots = new Set();
-  const loginCsrfSet = new Set();
 
   function issueLoginCsrf() {
-    const token = crypto.randomBytes(24).toString('hex');
-    loginCsrfSet.add(token);
-    if (loginCsrfSet.size > 500) {
-      const first = loginCsrfSet.values().next().value;
-      loginCsrfSet.delete(first);
-    }
-    return token;
+    return store.issueLoginCsrf();
   }
 
   function getAuthSession(req) {
@@ -626,8 +619,14 @@ function createServer(options = {}) {
         }
         if (req.method === 'POST') {
           const body = await parseBodyParams(req);
-          const usr = body.usr || body.username || '';
-          const pas = body.pas || body.password || '';
+          const usr = body.usr !== undefined ? body.usr : (body.username !== undefined ? body.username : '');
+          const pas = body.pas !== undefined ? body.pas : (body.password !== undefined ? body.password : '');
+          const csrf = body.csrf_token !== undefined ? body.csrf_token : body.csrfToken;
+          let csrfValid = undefined;
+          if (csrf !== undefined) {
+            csrfValid = store.verifyLoginCsrf(csrf, false);
+          }
+
           const forceEvict = body.force_evict === '1'
             || body.force_evict === true
             || body.forceEvict === true
@@ -639,7 +638,9 @@ function createServer(options = {}) {
             ip: req.socket.remoteAddress || '127.0.0.1',
             userAgent: req.headers['user-agent'] || '',
             vtId: body.vt_id || '',
-            vtFp: body.vt_fp || ''
+            vtFp: body.vt_fp || '',
+            csrfToken: csrf,
+            csrfValid
           });
 
           if (!result.ok && result.limitExceeded) {
@@ -651,7 +652,15 @@ function createServer(options = {}) {
             });
           }
           if (!result.ok) {
-            return sendJson(res, 401, { status: 'error', error: result.error });
+            return sendJson(res, 401, {
+              status: 'error',
+              error: result.error,
+              csrfToken: store.issueLoginCsrf()
+            });
+          }
+
+          if (csrf && store.loginCsrfSet) {
+            store.loginCsrfSet.delete(csrf);
           }
 
           const encodedSid = encodeURIComponent(result.session.token);
@@ -682,7 +691,12 @@ function createServer(options = {}) {
       if (pathname === '/logout' || pathname === '/Logout.php') {
         const cookies = parseCookies(req);
         const sid = cookies.relay_sid || cookies.PHPSESSID;
-        if (sid) store.destroySession(sid);
+        if (sid) {
+          store.destroySession(sid);
+          wsHub.closeDashboardSessions(sid);
+        } else {
+          wsHub.closeDashboardSessions();
+        }
         res.writeHead(302, {
           Location: '/Login.php',
           'Set-Cookie': [
@@ -805,7 +819,8 @@ function createServer(options = {}) {
       if (
         pathname === '/api/download-extension' ||
         pathname === '/download-extension' ||
-        pathname === '/download/extension.zip'
+        pathname === '/download/extension.zip' ||
+        pathname === '/downloads/bin4ry-relay-extension.zip'
       ) {
         try {
           const zipBuf = buildExtensionZip(extensionDir);
@@ -995,7 +1010,8 @@ function createServer(options = {}) {
           'getDashboard', 'getShootDetail', 'saveShootSettings',
           'getData', 'addData', 'deleteData', 'allocateData',
           'getTestData', 'addTestData', 'deleteTestData',
-          'getOnlinetabs', 'getAttachmentConfig', 'saveAttachmentConfig',
+          'getOnlinetabs', 'refreshTabs', 'pingTabs', 'refreshAllTabs',
+          'getAttachmentConfig', 'saveAttachmentConfig',
           'saveCompose', 'getFolders', 'reloadTab', 'reloadAll',
           'closeTab', 'closeAll', 'pinTab', 'shoot', 'testShoot', 'abortShoot'
         ];
@@ -1068,6 +1084,14 @@ function createServer(options = {}) {
 
           case 'getOnlinetabs':
             return sendJson(res, 200, { ok: true, onlineTabs: store.listOnlineTabs() });
+
+          case 'refreshTabs':
+          case 'pingTabs':
+          case 'refreshAllTabs': {
+            wsHub.broadcastAgents({ type: 'PING_TABS' });
+            wsHub.broadcastDashboards({ type: 'TABS_UPDATED', onlineTabs: store.listOnlineTabs() });
+            return sendJson(res, 200, { ok: true, onlineTabs: store.listOnlineTabs() });
+          }
 
           case 'getAttachmentConfig':
             return sendJson(res, 200, { ok: true, config: store.state.attachmentConfig });
@@ -1289,6 +1313,20 @@ function createServer(options = {}) {
         const rest = pathname.slice('/api/accounts/'.length);
         const [accountId, subAction] = rest.split('/');
 
+        if (req.method === 'GET' && !subAction) {
+          const acc = store.getAccount(accountId);
+          if (!acc) return sendJson(res, 404, { ok: false, error: 'Account not found' });
+          return sendJson(res, 200, { ok: true, account: acc });
+        }
+
+        if ((req.method === 'PUT' || req.method === 'PATCH') && !subAction) {
+          const body = await parseBodyParams(req);
+          const existing = store.getAccount(accountId);
+          if (!existing) return sendJson(res, 404, { ok: false, error: 'Account not found' });
+          const updated = store.upsertAccount({ ...existing, ...body, id: existing.id });
+          return sendJson(res, 200, { ok: true, account: updated, accounts: store.listAccounts() });
+        }
+
         if (req.method === 'DELETE' && !subAction) {
           await browserManager.stopAccount(accountId);
           const ok = store.deleteAccount(accountId);
@@ -1324,6 +1362,110 @@ function createServer(options = {}) {
         }
       }
 
+      // ── Online Tabs REST API (/api/tabs) ────────────────────────────────────
+      if (pathname === '/api/tabs') {
+        const sess = requireAuthApi(req, res);
+        if (!sess) return;
+        if (req.method === 'GET') {
+          return sendJson(res, 200, { ok: true, tabs: store.listOnlineTabs(), onlineTabs: store.listOnlineTabs() });
+        }
+        if (req.method === 'POST') {
+          const body = await parseBodyParams(req);
+          const tab = store.upsertOnlineTab(body);
+          wsHub.broadcastDashboards({ type: 'TABS_UPDATED', onlineTabs: store.listOnlineTabs() });
+          return sendJson(res, 200, { ok: true, tab, tabs: store.listOnlineTabs(), onlineTabs: store.listOnlineTabs() });
+        }
+        if (req.method === 'DELETE') {
+          store.state.onlineTabs = {};
+          store.save();
+          wsHub.broadcastDashboards({ type: 'TABS_UPDATED', onlineTabs: [] });
+          return sendJson(res, 200, { ok: true, tabs: [], onlineTabs: [] });
+        }
+      }
+
+      if (pathname.startsWith('/api/tabs/')) {
+        const sess = requireAuthApi(req, res);
+        if (!sess) return;
+        const rest = pathname.slice('/api/tabs/'.length);
+        const [tabKeyRaw, subAction] = rest.split('/');
+        const tabKey = decodeURIComponent(tabKeyRaw);
+        const tab = store.state.onlineTabs[tabKey] || store.listOnlineTabs().find((t) => t.key === tabKey || String(t.tabId) === tabKey || t.accountId === tabKey);
+
+        if (req.method === 'GET' && !subAction) {
+          if (!tab) return sendJson(res, 404, { ok: false, error: 'Tab not found' });
+          return sendJson(res, 200, { ok: true, tab });
+        }
+
+        if ((req.method === 'PUT' || req.method === 'PATCH') && !subAction) {
+          const body = await parseBodyParams(req);
+          if (!tab) return sendJson(res, 404, { ok: false, error: 'Tab not found' });
+          const updated = store.upsertOnlineTab({ ...tab, ...body, tabKey: tab.key });
+          wsHub.broadcastDashboards({ type: 'TABS_UPDATED', onlineTabs: store.listOnlineTabs() });
+          return sendJson(res, 200, { ok: true, tab: updated, tabs: store.listOnlineTabs(), onlineTabs: store.listOnlineTabs() });
+        }
+
+        if (req.method === 'DELETE' && !subAction) {
+          const ok = store.removeOnlineTab(tabKey);
+          wsHub.broadcastDashboards({ type: 'TABS_UPDATED', onlineTabs: store.listOnlineTabs() });
+          return sendJson(res, 200, { ok, tabs: store.listOnlineTabs(), onlineTabs: store.listOnlineTabs() });
+        }
+
+        if (req.method === 'POST' && subAction === 'reload') {
+          if (tab && tab.accountId) {
+            wsHub.sendToAccount(tab.accountId, { type: 'RELOAD_TABS', tabIds: [tab.tabId] });
+          }
+          return sendJson(res, 200, { ok: true, reloaded: true, tab });
+        }
+      }
+
+      // ── Custom Tags REST API (/api/tags) ────────────────────────────────────
+      if (pathname === '/api/tags') {
+        const sess = requireAuthApi(req, res);
+        if (!sess) return;
+        if (req.method === 'GET') {
+          return sendJson(res, 200, { ok: true, tags: store.getTags(), predefined: PREDEFINED_TAG_CATALOG });
+        }
+        if (req.method === 'POST') {
+          const body = await parseBodyParams(req);
+          const name = body.name || body.tag;
+          if (!name) return sendJson(res, 400, { ok: false, error: 'Tag name required' });
+          const created = store.upsertTag(name, body.values, body.type);
+          wsHub.broadcastDashboards({ type: 'TAGS_UPDATED', customTags: store.getTags() });
+          return sendJson(res, 200, { ok: true, created, tags: store.getTags() });
+        }
+      }
+
+      if (pathname.startsWith('/api/tags/')) {
+        const sess = requireAuthApi(req, res);
+        if (!sess) return;
+        const rawName = decodeURIComponent(pathname.slice('/api/tags/'.length));
+        let tagKey = rawName.trim();
+        if (!tagKey.startsWith('{')) tagKey = `{${tagKey}}`;
+
+        if (req.method === 'GET') {
+          const tags = store.getTags();
+          if (!(tagKey in tags)) return sendJson(res, 404, { ok: false, error: 'Tag not found' });
+          return sendJson(res, 200, { ok: true, key: tagKey, tag: tags[tagKey] });
+        }
+
+        if (req.method === 'PUT' || req.method === 'PATCH') {
+          const body = await parseBodyParams(req);
+          const tags = store.getTags();
+          const existing = tags[tagKey] || {};
+          const values = body.values !== undefined ? body.values : existing.values;
+          const type = body.type !== undefined ? body.type : existing.type;
+          const created = store.upsertTag(rawName, values, type);
+          wsHub.broadcastDashboards({ type: 'TAGS_UPDATED', customTags: store.getTags() });
+          return sendJson(res, 200, { ok: true, created, tags: store.getTags() });
+        }
+
+        if (req.method === 'DELETE') {
+          const ok = store.deleteTag(rawName);
+          wsHub.broadcastDashboards({ type: 'TAGS_UPDATED', customTags: store.getTags() });
+          return sendJson(res, 200, { ok, tags: store.getTags() });
+        }
+      }
+
       // ── Generic Proxy Probe ─────────────────────────────────────────────────
       if (pathname === '/api/proxies/test' && req.method === 'POST') {
         const sess = requireAuthApi(req, res);
@@ -1339,7 +1481,7 @@ function createServer(options = {}) {
       }
 
       // ── HTML -> PDF / Image Conversion API ──────────────────────────────────
-      if (pathname === '/api/convert' && req.method === 'POST') {
+      if ((pathname === '/api/convert' || pathname === '/api/files/convert') && req.method === 'POST') {
         const sess = requireAuthApi(req, res);
         if (!sess) return;
         const body = await parseBodyParams(req);
@@ -1362,44 +1504,175 @@ function createServer(options = {}) {
       if (pathname === '/api/files') {
         const sess = requireAuthApi(req, res);
         if (!sess) return;
-        return sendJson(res, 200, { ok: true, files: store.state.uploadedFiles });
-      }
-
-      if (pathname === '/api/files/upload' && req.method === 'POST') {
-        const sess = requireAuthApi(req, res);
-        if (!sess) return;
-        const body = await parseBodyParams(req);
-        if (!body.filename || body.base64 === undefined) {
-          return sendJson(res, 400, { ok: false, error: 'filename and base64 required' });
+        if (req.method === 'GET') {
+          return sendJson(res, 200, { ok: true, files: store.state.uploadedFiles });
         }
-        const buf = Buffer.from(String(body.base64), 'base64');
-        const id = `file_${crypto.randomBytes(6).toString('hex')}`;
-        const safeName = path.basename(String(body.filename)).replace(/[^a-zA-Z0-9._-]+/g, '_');
-        const diskPath = path.join(store.uploadsDir, `${id}_${safeName}`);
-        fs.writeFileSync(diskPath, buf);
+        if (req.method === 'POST') {
+          const body = await parseBodyParams(req);
+          let filename = body.filename;
+          let buf;
+          if (body.base64 !== undefined) {
+            buf = Buffer.from(String(body.base64), 'base64');
+          } else if (body.file && body.file.buffer) {
+            buf = body.file.buffer;
+            filename = filename || body.file.filename;
+          }
+          if (!filename || !buf) {
+            return sendJson(res, 400, { ok: false, error: 'filename and base64 required' });
+          }
+          const id = `file_${crypto.randomBytes(6).toString('hex')}`;
+          const safeName = path.basename(String(filename)).replace(/[^a-zA-Z0-9._-]+/g, '_');
+          const diskPath = path.join(store.uploadsDir, `${id}_${safeName}`);
+          fs.writeFileSync(diskPath, buf);
 
-        const rec = {
-          id,
-          originalName: safeName,
-          mimeType: body.mimeType || MIME_TYPES[path.extname(safeName).toLowerCase()] || 'application/octet-stream',
-          size: buf.length,
-          path: diskPath,
-          uploadedAt: new Date().toISOString()
-        };
-        store.state.uploadedFiles.push(rec);
-        store.save();
-        return sendJson(res, 200, { ok: true, file: rec, files: store.state.uploadedFiles });
+          const rec = {
+            id,
+            originalName: safeName,
+            mimeType: body.mimeType || MIME_TYPES[path.extname(safeName).toLowerCase()] || 'application/octet-stream',
+            size: buf.length,
+            path: diskPath,
+            uploadedAt: new Date().toISOString()
+          };
+          store.state.uploadedFiles.push(rec);
+          store.save();
+          return sendJson(res, 200, { ok: true, file: rec, files: store.state.uploadedFiles });
+        }
       }
 
-      if (pathname.startsWith('/api/files/') && req.method === 'DELETE') {
+      if (pathname.startsWith('/api/files/')) {
         const sess = requireAuthApi(req, res);
         if (!sess) return;
-        const id = pathname.slice('/api/files/'.length);
+        const rest = pathname.slice('/api/files/'.length);
+        if (rest === 'upload' && req.method === 'POST') {
+          const body = await parseBodyParams(req);
+          if (!body.filename || body.base64 === undefined) {
+            return sendJson(res, 400, { ok: false, error: 'filename and base64 required' });
+          }
+          const buf = Buffer.from(String(body.base64), 'base64');
+          const id = `file_${crypto.randomBytes(6).toString('hex')}`;
+          const safeName = path.basename(String(body.filename)).replace(/[^a-zA-Z0-9._-]+/g, '_');
+          const diskPath = path.join(store.uploadsDir, `${id}_${safeName}`);
+          fs.writeFileSync(diskPath, buf);
+
+          const rec = {
+            id,
+            originalName: safeName,
+            mimeType: body.mimeType || MIME_TYPES[path.extname(safeName).toLowerCase()] || 'application/octet-stream',
+            size: buf.length,
+            path: diskPath,
+            uploadedAt: new Date().toISOString()
+          };
+          store.state.uploadedFiles.push(rec);
+          store.save();
+          return sendJson(res, 200, { ok: true, file: rec, files: store.state.uploadedFiles });
+        }
+
+        const [id, subAction] = rest.split('/');
         const rec = store.state.uploadedFiles.find((f) => f.id === id);
-        if (rec && fs.existsSync(rec.path)) fs.unlinkSync(rec.path);
-        store.state.uploadedFiles = store.state.uploadedFiles.filter((f) => f.id !== id);
-        store.save();
-        return sendJson(res, 200, { ok: true, files: store.state.uploadedFiles });
+
+        if (req.method === 'GET') {
+          if (!rec) return sendJson(res, 404, { ok: false, error: 'File not found' });
+          if (subAction === 'download' || reqUrl.searchParams.get('download') === '1') {
+            return serveFile(res, rec.path, req);
+          }
+          return sendJson(res, 200, { ok: true, file: rec });
+        }
+
+        if (req.method === 'DELETE') {
+          if (rec && fs.existsSync(rec.path)) fs.unlinkSync(rec.path);
+          store.state.uploadedFiles = store.state.uploadedFiles.filter((f) => f.id !== id);
+          store.save();
+          return sendJson(res, 200, { ok: true, files: store.state.uploadedFiles });
+        }
+      }
+
+      // ── Settings REST API (/api/settings) ───────────────────────────────────
+      if (pathname === '/api/settings') {
+        const sess = requireAuthApi(req, res);
+        if (!sess) return;
+        if (req.method === 'GET') {
+          return sendJson(res, 200, {
+            ok: true,
+            settings: store.state.shootSettings,
+            shootSettings: store.state.shootSettings,
+            automationSettings: store.state.automationSettings,
+            shootQuota: store.state.shootQuota,
+            attachmentConfig: store.state.attachmentConfig,
+            compose: store.state.compose
+          });
+        }
+        if (req.method === 'POST' || req.method === 'PUT' || req.method === 'PATCH') {
+          const body = await parseBodyParams(req);
+          if (body.shootSettings || body.gmail !== undefined || body.yahoo !== undefined || body.outlook !== undefined || body.forceStart !== undefined || body.layout !== undefined) {
+            const s = store.state.shootSettings;
+            const src = body.shootSettings || body;
+            if (src.gmail != null) s.gmail = Math.max(1, Number(src.gmail));
+            if (src.yahoo != null) s.yahoo = Math.max(1, Number(src.yahoo));
+            if (src.outlook != null) s.outlook = Math.max(1, Number(src.outlook));
+            if (['two-col', 'one-col', 'reversed'].includes(src.layout)) s.layout = src.layout;
+            if (src.forceStart !== undefined) s.forceStart = Boolean(src.forceStart);
+          }
+          if (body.automationSettings) {
+            store.state.automationSettings = { ...store.state.automationSettings, ...body.automationSettings };
+          }
+          if (body.shootQuota) {
+            store.state.shootQuota = { ...store.state.shootQuota, ...body.shootQuota };
+          }
+          if (body.dailyLimit !== undefined) {
+            store.state.shootQuota.dailyLimit = Number(body.dailyLimit);
+          }
+          if (body.attachmentConfig) {
+            store.state.attachmentConfig = { ...store.state.attachmentConfig, ...body.attachmentConfig };
+          }
+          if (body.compose) {
+            store.state.compose = { ...store.state.compose, ...body.compose };
+          }
+          store.save();
+          return sendJson(res, 200, {
+            ok: true,
+            settings: store.state.shootSettings,
+            shootSettings: store.state.shootSettings,
+            automationSettings: store.state.automationSettings,
+            shootQuota: store.state.shootQuota,
+            attachmentConfig: store.state.attachmentConfig,
+            compose: store.state.compose
+          });
+        }
+      }
+
+      // ── Shoot Dispatch REST API (/api/shoot) ────────────────────────────────
+      if (pathname === '/api/shoot') {
+        const sess = requireAuthApi(req, res);
+        if (!sess) return;
+        if (req.method === 'GET') {
+          return sendJson(res, 200, {
+            ok: true,
+            shootState: store.state.shootState,
+            quota: store.state.shootQuota,
+            settings: store.state.shootSettings
+          });
+        }
+        if (req.method === 'POST') {
+          const body = await parseBodyParams(req);
+          const isTest = Boolean(body.isTest || body.testShoot);
+          const testEmail = body.testEmail || body.email || '';
+          const result = await dispatchShoot({
+            isTest,
+            testEmail,
+            overrideSubject: body.subject,
+            overrideBody: body.body
+          });
+          return sendJson(res, 200, result);
+        }
+        if (req.method === 'DELETE') {
+          return sendJson(res, 200, abortActiveShoot());
+        }
+      }
+
+      if (pathname === '/api/shoot/abort' && req.method === 'POST') {
+        const sess = requireAuthApi(req, res);
+        if (!sess) return;
+        return sendJson(res, 200, abortActiveShoot());
       }
 
       // ── SMS Verification Pool REST API ──────────────────────────────────────
@@ -1476,6 +1749,36 @@ function createServer(options = {}) {
         wsHub.broadcastAgents({ type: 'ABORT_DISPATCH', campaignId: store.state.gmass.activeCampaignId || null });
         wsHub.broadcastDashboards({ type: 'GMASS_PAUSED', gmass: store.state.gmass });
         return sendJson(res, 200, { ok: true, paused: true, gmass: store.state.gmass });
+      }
+
+      if (pathname === '/api/gmass/resume' && req.method === 'POST') {
+        const sess = requireAuthApi(req, res);
+        if (!sess) return;
+        store.state.gmass.paused = false;
+        store.state.gmass.active = true;
+        store.state.gmass.statusText = 'Resumed';
+        store.save();
+        wsHub.broadcastDashboards({ type: 'GMASS_RESUMED', gmass: store.state.gmass });
+        return sendJson(res, 200, { ok: true, resumed: true, gmass: store.state.gmass });
+      }
+
+      if (pathname === '/api/gmass/stop' && req.method === 'POST') {
+        const sess = requireAuthApi(req, res);
+        if (!sess) return;
+        for (const timer of shootTimers) {
+          if (timer.__isGmass) {
+            clearTimeout(timer);
+            shootTimers.delete(timer);
+          }
+        }
+        store.state.gmass.paused = false;
+        store.state.gmass.active = false;
+        store.state.gmass.activeCampaignId = null;
+        store.state.gmass.statusText = 'Stopped';
+        store.save();
+        wsHub.broadcastAgents({ type: 'ABORT_DISPATCH', campaignId: null });
+        wsHub.broadcastDashboards({ type: 'GMASS_STOPPED', gmass: store.state.gmass });
+        return sendJson(res, 200, { ok: true, stopped: true, gmass: store.state.gmass });
       }
 
       if (pathname === '/api/gmass/send' && req.method === 'POST') {

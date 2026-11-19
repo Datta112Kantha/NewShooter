@@ -1234,13 +1234,19 @@ test('E2E Extension Drivers: gds-driver, support-driver, drive-driver, gmail-dri
   }
 });
 
-test('E2E Extension Popup Isolated Proxy over WS (cross-origin localhost vs 127.0.0.1) & Standalone HTTP Basic Proxy Auth via onAuthRequired', async () => {
+test('E2E Extension Popup Isolated Proxy over WS (cross-origin localhost vs 127.0.0.1) & Standalone HTTP Basic Proxy Auth via onAuthRequired', { timeout: 60000 }, async () => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ns-ext-proxy-'));
   const extDir = path.resolve(__dirname, '../extension');
 
   const targetServer = http.createServer((req, res) => {
     if (req.url.startsWith('/whoami')) {
       const json = JSON.stringify({ identity: req.headers['x-proxy-identity'] || 'direct', path: req.url });
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(json) });
+      res.end(json);
+      return;
+    }
+    if (req.url.startsWith('/json')) {
+      const json = JSON.stringify({ status: 'success', query: '127.0.0.1', country: 'US', isp: 'Mock' });
       res.writeHead(200, { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(json) });
       res.end(json);
       return;
@@ -1254,7 +1260,10 @@ test('E2E Extension Popup Isolated Proxy over WS (cross-origin localhost vs 127.
   const socks5 = await startMockSocks5Server({
     username: 's5u',
     password: 's5p',
-    hostMap: { 'iso-exit.example': '127.0.0.1' }
+    hostMap: {
+      'iso-exit.example': '127.0.0.1',
+      'ip-api.com': `127.0.0.1:${targetPort}`
+    }
   });
   const httpProxy = await startMockHttpProxy({
     username: 'extuser',

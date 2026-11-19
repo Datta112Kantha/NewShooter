@@ -180,7 +180,8 @@
           <div class="panel-header-actions">
             <button type="button" id="manageAccountsBtn" class="btn btn--sm btn--primary" title="Manage Accounts &amp; Per-Account Proxies">+ Accounts</button>
             <button type="button" id="recallTabsBtn" class="icon-btn icon-btn--sm" title="Recall from tab" aria-label="Recall from tab">↺</button>
-            <button type="button" id="refreshTabsBtn" class="icon-btn icon-btn--sm" title="Refresh online tabs" aria-label="Refresh online tabs">↻</button>
+            <button type="button" id="refreshTabsBtn" class="icon-btn icon-btn--sm" title="Refresh online tabs (Active Scan)" aria-label="Refresh online tabs">↻</button>
+            <button type="button" id="refreshAllTabsBtn" class="icon-btn icon-btn--sm" title="Refresh All Tabs" aria-label="Refresh All Tabs">↻ All</button>
             <button type="button" id="getFoldersAllBtn" class="icon-btn icon-btn--sm" title="Fetch Inbox/Sent/Drafts/Spam counts from every tab" aria-label="Get folders">📁</button>
             <button type="button" id="reloadAllTabsBtn" class="icon-btn icon-btn--sm" title="Reload all tabs" aria-label="Reload all tabs">⟳</button>
             <button type="button" id="closeAllTabsBtn" class="icon-btn icon-btn--sm" title="Close all tabs" aria-label="Close all tabs">✕</button>
@@ -363,8 +364,7 @@
       </div>
       <div class="metric-chip">UPDATED <strong id="metricUpdated">Just now</strong></div>
       <div class="metric-chip">LIMIT <strong id="metricLimit">60000</strong></div>
-      <div class="metric-chip">SENT TODAY <strong id="metricSent">0</strong></div>
-      <div class="metric-chip">EXPIRY <strong id="metricExpiry">3 hours left</strong></div>
+      <div class="metric-chip">SENT TODAY: <strong id="metricSent">0 / 60000</strong></div>
     </div>
 
     <div class="relay-action-bar__group">

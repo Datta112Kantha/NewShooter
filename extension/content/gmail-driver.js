@@ -8,9 +8,15 @@
   function extractEmailFromDom() {
     const titleMatch = (document.title || '').match(/[\w.+-]+@[\w.-]+\.[a-zA-Z]{2,}/);
     if (titleMatch) return titleMatch[0];
-    const aria = document.querySelector('a[aria-label*="@gmail.com"], a[aria-label*="@"]');
+    const aria = document.querySelector('a[aria-label*="@gmail.com"], a[aria-label*="@"], [aria-label*="Google Account:" i], [aria-label*="Google Account" i]');
     const m = (aria?.getAttribute('aria-label') || '').match(/[\w.+-]+@[\w.-]+\.[a-zA-Z]{2,}/);
-    return m ? m[0] : '';
+    if (m) return m[0];
+    const accountEl = document.querySelector('[data-email], .gb_d[aria-label], .gb_A[aria-label]');
+    if (accountEl) {
+      const em = (accountEl.getAttribute('data-email') || accountEl.getAttribute('aria-label') || '').match(/[\w.+-]+@[\w.-]+\.[a-zA-Z]{2,}/);
+      if (em) return em[0];
+    }
+    return '';
   }
 
   function scrapeFolderCounts() {
@@ -34,6 +40,67 @@
     };
   }
 
+  async function openGmailCompose() {
+    const toFieldSelector = 'input[aria-label*="To" i], input[peoplekit-id], textarea[name="to"]';
+    const existing = document.querySelector(toFieldSelector);
+    if (existing && DOM.isElementVisible(existing)) return true;
+
+    // Standard compose button: div[gh="cm"], [role="button"][gh="cm"]
+    let composeBtn = await DOM.waitForElement('div[gh="cm"], [role="button"][gh="cm"]', 2000);
+    if (composeBtn) {
+      await DOM.cdpClickElement(composeBtn);
+      if (await DOM.waitForElement(toFieldSelector, 3000)) return true;
+    }
+
+    // Fallback a) Clicking the hamburger menu (button[aria-label*="Main menu" i]) to expand navigation drawer
+    const menuBtn = document.querySelector('button[aria-label*="Main menu" i], [aria-label*="Main menu" i][role="button"], div[aria-label*="Main menu" i]');
+    if (menuBtn) {
+      await DOM.cdpClickElement(menuBtn);
+      await DOM.sleep(400);
+      composeBtn = await DOM.waitForElement('div[gh="cm"], [role="button"][gh="cm"]', 2000);
+      if (composeBtn) {
+        await DOM.cdpClickElement(composeBtn);
+        if (await DOM.waitForElement(toFieldSelector, 3000)) return true;
+      }
+    }
+
+    // Fallback b) Pressing keyboard shortcut 'c' (standard Gmail shortcut to compose)
+    DOM.simulateKeyPress('c');
+    if (await DOM.waitForElement(toFieldSelector, 2500)) return true;
+
+    // Fallback c) Clicking compact compose button [aria-label*="Compose" i]
+    const compactBtn = await DOM.waitForElement('[aria-label*="Compose" i]:not([role="textbox"]):not([contenteditable="true"])', 2000);
+    if (compactBtn) {
+      await DOM.cdpClickElement(compactBtn);
+      if (await DOM.waitForElement(toFieldSelector, 3000)) return true;
+    }
+
+    // Fallback d) If still hidden, temporarily apply zoom (document.body.style.zoom = "0.75")
+    const origZoom = document.body.style.zoom || '';
+    try {
+      document.body.style.zoom = '0.75';
+      window.dispatchEvent(new Event('resize'));
+      await DOM.sleep(400);
+
+      composeBtn = await DOM.waitForElement('div[gh="cm"], [role="button"][gh="cm"], [aria-label*="Compose" i]:not([role="textbox"])', 2000);
+      if (composeBtn) {
+        await DOM.cdpClickElement(composeBtn);
+        if (await DOM.waitForElement(toFieldSelector, 3000)) return true;
+      }
+
+      DOM.simulateKeyPress('c');
+      if (await DOM.waitForElement(toFieldSelector, 2500)) return true;
+    } finally {
+      if (origZoom) {
+        document.body.style.zoom = origZoom;
+      } else {
+        document.body.style.removeProperty('zoom');
+      }
+    }
+
+    return false;
+  }
+
   async function executeSend(payload) {
     abortFlag = false;
     const { taskId, recipientEmail, subject, body, attachments = [] } = payload;
@@ -54,9 +121,8 @@
     };
 
     try {
-      const composeBtn = await DOM.waitForElement('div[gh="cm"], [role="button"][gh="cm"]', 8000);
-      if (!composeBtn) throw new Error('Gmail Compose button not found');
-      await DOM.cdpClickElement(composeBtn);
+      const composeOpened = await openGmailCompose();
+      if (!composeOpened) throw new Error('Gmail Compose button not found');
 
       if (abortFlag) return report('ABORTED', 'Aborted');
 
@@ -132,7 +198,9 @@
       padding: '8px 10px',
       background: '#09090b',
       borderBottom: '1px solid #27272a',
-      cursor: 'pointer'
+      cursor: 'pointer',
+      userSelect: 'none',
+      webkitUserSelect: 'none'
     });
 
     const titleWrap = document.createElement('div');
@@ -148,9 +216,15 @@
 
     const toggleBtn = document.createElement('button');
     toggleBtn.type = 'button';
-    toggleBtn.textContent = '−';
+    toggleBtn.textContent = '+';
     Object.assign(toggleBtn.style, {
-      background: 'transparent', border: 'none', color: '#a1a1aa', cursor: 'pointer', fontSize: '14px', lineHeight: '1'
+      background: 'transparent',
+      border: 'none',
+      color: '#a1a1aa',
+      cursor: 'pointer',
+      fontSize: '14px',
+      lineHeight: '1',
+      pointerEvents: 'none'
     });
     header.append(titleWrap, toggleBtn);
 
@@ -210,15 +284,30 @@
     bodyWrap.append(makeLbl('RECIPIENTS'), recArea, makeLbl('SUBJECT'), subjIn, makeLbl('MESSAGE'), msgArea, footerRow);
     root.append(header, bodyWrap);
 
+    const STORAGE_KEY = 'ns_sidebar_collapsed';
     let collapsed = true;
-    bodyWrap.style.display = 'none';
-    toggleBtn.textContent = '+';
+    try {
+      const saved = sessionStorage.getItem(STORAGE_KEY);
+      if (saved !== null) {
+        collapsed = saved === 'true';
+      }
+    } catch {}
+
     const setCollapsed = (next) => {
-      collapsed = next;
+      collapsed = Boolean(next);
+      try {
+        sessionStorage.setItem(STORAGE_KEY, String(collapsed));
+      } catch {}
       bodyWrap.style.display = collapsed ? 'none' : 'flex';
       toggleBtn.textContent = collapsed ? '+' : '−';
     };
-    header.addEventListener('click', () => setCollapsed(!collapsed));
+    setCollapsed(collapsed);
+
+    header.addEventListener('click', (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      setCollapsed(!collapsed);
+    });
 
     let localRunning = false;
     startBtn.addEventListener('click', async () => {
@@ -263,11 +352,22 @@
   let inboxAnnounced = false;
   function announceReady() {
     if (inboxAnnounced) return true;
-    const composeEl = document.querySelector('div[gh="cm"], [role="button"][gh="cm"]');
-    const email = extractEmailFromDom();
-    if (!composeEl || !email) return false;
+    const url = window.location.href || '';
+    const isInboxUrl = url.includes('mail.google.com') || url.includes('#inbox');
+    const hasSearch = !!document.querySelector('input[name="q"]');
+    const hasMain = !!document.querySelector('[role="main"], div[gh="tl"], .AO, #gb, div[gh="cm"]');
+    if (!isInboxUrl && !hasSearch && !hasMain) return false;
+
+    const email = extractEmailFromDom() || (document.title.match(/[\w.+-]+@[\w.-]+\.[a-zA-Z]{2,}/)?.[0] || '');
+    if (!email) return false;
+
     inboxAnnounced = true;
     mountRelaySidebar();
+    const idSpan = document.getElementById('ns-sidebar-id');
+    if (idSpan) {
+      const shortId = Array.from(email).reduce((a, c) => ((a * 31 + c.charCodeAt(0)) & 0xffffff), 7).toString(16).slice(0, 6);
+      idSpan.textContent = `ID · ${shortId}`;
+    }
     const folders = scrapeFolderCounts();
     chrome.runtime.sendMessage({
       action: 'INBOX_READY',

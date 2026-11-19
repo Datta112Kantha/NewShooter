@@ -1,7 +1,24 @@
 'use strict';
 
 const crypto = require('node:crypto');
-const { parseBulkCredentials } = require('../core/credentials');
+const { parseBulkCredentials, detectProviderFromEmail } = require('../core/credentials');
+
+function extractEmail(str) {
+  if (!str) return '';
+  const match = String(str).match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
+  return match ? match[0] : '';
+}
+
+function detectProvider(email, url = '', provider = '') {
+  if (provider && provider !== 'gmail') return provider;
+  const pFromEmail = detectProviderFromEmail(email);
+  if (pFromEmail && pFromEmail !== 'gmail') return pFromEmail;
+  const lowerUrl = String(url || '').toLowerCase();
+  if (lowerUrl.includes('outlook.') || lowerUrl.includes('live.com') || lowerUrl.includes('office365')) return 'outlook';
+  if (lowerUrl.includes('yahoo.') || lowerUrl.includes('ymail.')) return 'yahoo';
+  if (lowerUrl.includes('icloud.')) return 'icloud';
+  return pFromEmail || provider || 'gmail';
+}
 
 const WS_GUID = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11';
 
@@ -176,7 +193,7 @@ class WsHub {
     return false;
   }
 
-  _hasValidDashboardSession(req) {
+  _getDashboardSessionId(req) {
     const header = req.headers.cookie || '';
     for (const part of header.split(';')) {
       const eq = part.indexOf('=');
@@ -184,10 +201,14 @@ class WsHub {
       const k = part.slice(0, eq).trim();
       const v = decodeURIComponent(part.slice(eq + 1).trim());
       if ((k === 'relay_sid' || k === 'PHPSESSID') && v && this.store.getSession(v)) {
-        return true;
+        return v;
       }
     }
-    return false;
+    return null;
+  }
+
+  _hasValidDashboardSession(req) {
+    return Boolean(this._getDashboardSessionId(req));
   }
 
   handleUpgrade(req, socket, head) {
@@ -205,7 +226,8 @@ class WsHub {
 
     const reqUrl = new URL(req.url || '/', 'http://localhost');
     const role = reqUrl.pathname.startsWith('/ws/dashboard') ? 'dashboard' : 'agent';
-    if (role === 'dashboard' && !this._hasValidDashboardSession(req)) {
+    const sid = role === 'dashboard' ? this._getDashboardSessionId(req) : null;
+    if (role === 'dashboard' && !sid) {
       socket.end('HTTP/1.1 401 Unauthorized\r\n\r\n');
       return;
     }
@@ -222,8 +244,10 @@ class WsHub {
 
     const client = new WsClient(socket, role, {
       ip: req.socket.remoteAddress || '127.0.0.1',
-      url: req.url
+      url: req.url,
+      sid
     });
+    client.sessionId = sid;
     this.clients.add(client);
 
     let buffer = head && head.length ? Buffer.from(head) : Buffer.alloc(0);
@@ -281,8 +305,13 @@ class WsHub {
     if (role === 'dashboard') {
       client.sendJson({
         type: 'DASHBOARD_SYNC',
+        role: 'dashboard',
         onlineTabs: this.store.listOnlineTabs(),
         shootState: this.store.state.shootState
+      });
+      client.sendJson({
+        type: 'HELLO',
+        role: 'dashboard'
       });
     }
   }
@@ -300,6 +329,61 @@ class WsHub {
     }
   }
 
+  _updateTabsFromAgent(client, tabsList) {
+    if (!Array.isArray(tabsList)) return;
+    for (const t of tabsList) {
+      const extractedEmail = t.email || extractEmail(t.title) || extractEmail(t.url) || extractEmail(t.tabName) || client.email || '';
+      const resolvedProvider = t.provider || detectProvider(extractedEmail, t.url, t.provider);
+      const accId = t.accountId || client.accountId || extractedEmail || `tab_${t.tabId}`;
+      if (extractedEmail && !client.email) {
+        client.email = extractedEmail;
+      }
+
+      let account = this.store.getAccount(accId) || (extractedEmail ? this.store.getAccount(extractedEmail) : null);
+      if (!account && extractedEmail) {
+        account = this.store.upsertAccount({
+          id: accId,
+          email: extractedEmail,
+          provider: resolvedProvider,
+          proxy: t.proxy || ''
+        });
+      }
+
+      const placeholderKeys = [`${accId}:0`, `${accId}:pw`];
+      let inherited = {};
+      for (const pk of placeholderKeys) {
+        if (this.store.state.onlineTabs[pk]) {
+          inherited = { ...this.store.state.onlineTabs[pk] };
+          delete this.store.state.onlineTabs[pk];
+        }
+      }
+
+      const finalEmail = extractedEmail || inherited.email || account?.email || '';
+      const finalProvider = resolvedProvider || inherited.provider || account?.provider || 'gmail';
+
+      this.store.upsertOnlineTab({
+        tabKey: `${accId || 'ext'}:${t.tabId}`,
+        tabId: t.tabId,
+        accountId: accId,
+        email: finalEmail,
+        provider: finalProvider,
+        tabName: t.title || t.tabName || inherited.tabName || `${finalProvider} #${t.tabId}`,
+        status: t.status || 'Idle',
+        dataAllocated: inherited.dataAllocated,
+        ip: t.ip || inherited.ip || '127.0.0.1',
+        proxy: t.proxy || inherited.proxy,
+        pinned: inherited.pinned,
+        inbox: t.inboxCount ?? t.inbox,
+        draft: t.draftCount ?? t.draft,
+        sent: t.sentCount ?? t.sent,
+        spam: t.spamCount ?? t.spam,
+        isBlocked: Boolean(t.isBlocked),
+        isActive: true
+      });
+    }
+    this.broadcastDashboards({ type: 'TABS_UPDATED', onlineTabs: this.store.listOnlineTabs() });
+  }
+
   _onTextMessage(client, rawText) {
     let msg;
     try {
@@ -309,28 +393,50 @@ class WsHub {
     }
     const type = String(msg.type || '').toUpperCase();
 
+    if (type === 'PING_TABS' || type === 'REFRESH_TABS') {
+      this.broadcastAgents({ type: 'PING_TABS' });
+      client.sendJson({
+        type: 'TABS_UPDATED',
+        onlineTabs: this.store.listOnlineTabs(),
+        shootState: this.store.state.shootState
+      });
+      return;
+    }
+
+    if (type === 'PONG_TABS' || type === 'PING_TABS_RESPONSE' || type === 'PING_TABS_REPLY' || type === 'TABS_STATUS') {
+      client.alive = true;
+      if (Array.isArray(msg.tabs)) {
+        this._updateTabsFromAgent(client, msg.tabs);
+      }
+      return;
+    }
+
     if (type === 'REGISTER_AGENT' || type === 'HELLO') {
-      const accountId = msg.accountId || msg.email || `ext_${client.id}`;
+      const detectedEmail = msg.email || extractEmail(msg.tabName) || extractEmail(msg.title) || extractEmail(msg.url) || '';
+      const provider = msg.isYahoo ? 'yahoo' : (msg.isIcloud ? 'icloud' : (msg.provider || detectProvider(detectedEmail, msg.url)));
+      const accountId = msg.accountId || (detectedEmail || `ext_${client.id}`);
       client.accountId = accountId;
-      client.email = msg.email || '';
+      client.email = detectedEmail || msg.email || '';
       client.tabId = msg.tabId ?? client.tabId;
       this.agentsByAccount.set(accountId, client);
 
-      const provider = msg.isYahoo ? 'yahoo' : (msg.isIcloud ? 'icloud' : (msg.provider || 'gmail'));
-      let account = this.store.getAccount(accountId) || (msg.email ? this.store.getAccount(msg.email) : null);
-      if (!account && msg.email) {
+      let account = this.store.getAccount(accountId) || (client.email ? this.store.getAccount(client.email) : null);
+      if (!account && client.email) {
         account = this.store.upsertAccount({
           id: accountId,
-          email: msg.email,
+          email: client.email,
           provider,
           proxy: msg.proxy || ''
         });
       }
 
       const resolvedAccId = account ? account.id : accountId;
-      if (msg.email || account || msg.tabId) {
+      const finalEmail = client.email || (account ? account.email : '');
+      const finalProvider = provider || (account ? account.provider : 'gmail');
+
+      if (finalEmail || account || msg.tabId !== undefined) {
         const existingForAccount = Object.values(this.store.state.onlineTabs).find(
-          (t) => t.accountId === resolvedAccId || t.accountId === accountId || (msg.tabId && t.tabId === msg.tabId)
+          (t) => t.accountId === resolvedAccId || t.accountId === accountId || (msg.tabId !== undefined && t.tabId === msg.tabId)
         );
         const targetKey = (!msg.tabId && existingForAccount)
           ? existingForAccount.key
@@ -339,9 +445,9 @@ class WsHub {
           tabKey: targetKey,
           tabId: msg.tabId ?? existingForAccount?.tabId ?? 0,
           accountId: resolvedAccId,
-          email: msg.email || (account ? account.email : ''),
-          provider: provider || (account ? account.provider : 'gmail'),
-          tabName: msg.tabName || msg.profileName || existingForAccount?.tabName || `${provider} #${msg.tabId || 1}`,
+          email: finalEmail || existingForAccount?.email || '',
+          provider: finalProvider || existingForAccount?.provider || 'gmail',
+          tabName: msg.tabName || msg.profileName || existingForAccount?.tabName || `${finalProvider} #${msg.tabId || 1}`,
           status: msg.status || existingForAccount?.status || 'Idle',
           isActive: true,
           ip: msg.outboundIp || account?.outboundIp || existingForAccount?.ip || '127.0.0.1',
@@ -355,12 +461,12 @@ class WsHub {
         success: true,
         ts: Date.now(),
         accountId: account ? account.id : accountId,
-        email: account?.email || msg.email || '',
+        email: account?.email || finalEmail || '',
         password: account?.password || '',
         recovery: account?.recovery || '',
         twoFa: account?.twoFa || '',
         proxy: account?.proxy || '',
-        provider: account?.provider || provider,
+        provider: account?.provider || finalProvider,
         automationSettings: this.store.state.automationSettings
       });
 
@@ -371,37 +477,7 @@ class WsHub {
     if (type === 'HEARTBEAT') {
       client.alive = true;
       if (Array.isArray(msg.tabs)) {
-        for (const t of msg.tabs) {
-          const accId = client.accountId || t.accountId || t.email;
-          const placeholderKeys = [`${accId}:0`, `${accId}:pw`];
-          let inherited = {};
-          for (const pk of placeholderKeys) {
-            if (this.store.state.onlineTabs[pk]) {
-              inherited = { ...this.store.state.onlineTabs[pk] };
-              delete this.store.state.onlineTabs[pk];
-            }
-          }
-          this.store.upsertOnlineTab({
-            tabKey: `${accId || 'ext'}:${t.tabId}`,
-            tabId: t.tabId,
-            accountId: accId,
-            email: t.email || client.email || inherited.email || '',
-            provider: t.provider || inherited.provider || 'gmail',
-            tabName: t.title || t.tabName || inherited.tabName || `Tab ${t.tabId}`,
-            status: t.status || 'Idle',
-            dataAllocated: inherited.dataAllocated,
-            ip: inherited.ip,
-            proxy: inherited.proxy,
-            pinned: inherited.pinned,
-            inbox: t.inboxCount ?? t.inbox,
-            draft: t.draftCount ?? t.draft,
-            sent: t.sentCount ?? t.sent,
-            spam: t.spamCount ?? t.spam,
-            isBlocked: Boolean(t.isBlocked),
-            isActive: true
-          });
-        }
-        this.broadcastDashboards({ type: 'TABS_UPDATED', onlineTabs: this.store.listOnlineTabs() });
+        this._updateTabsFromAgent(client, msg.tabs);
       } else if (msg.tabId !== undefined) {
         // Native RelayWsClient single-tab heartbeat
         const tab = Object.values(this.store.state.onlineTabs).find(
@@ -412,6 +488,11 @@ class WsHub {
           if (msg.draft !== undefined) tab.draft = Number(msg.draft) || 0;
           if (msg.sent !== undefined) tab.sent = Number(msg.sent) || 0;
           if (msg.spam !== undefined) tab.spam = Number(msg.spam) || 0;
+          const extracted = msg.email || extractEmail(msg.title) || extractEmail(msg.url);
+          if (extracted && (!tab.email || tab.email.trim() === '')) {
+            tab.email = extracted;
+            tab.provider = msg.provider || detectProvider(extracted, msg.url);
+          }
           tab.isActive = true;
           this.store.upsertOnlineTab(tab);
           this.broadcastDashboards({ type: 'TABS_UPDATED', onlineTabs: this.store.listOnlineTabs() });
@@ -506,7 +587,7 @@ class WsHub {
       return;
     }
 
-    if (type === 'TASK_STATUS_UPDATE') {
+    if (type === 'TASK_STATUS_UPDATE' || type === 'DISPATCH_RESULT') {
       const targetAccId = msg.accountId || client.accountId;
       const targetEmail = String(msg.email || client.email || '').toLowerCase();
       const tab = Object.values(this.store.state.onlineTabs).find(
@@ -752,6 +833,17 @@ class WsHub {
   broadcastDashboards(payload) {
     for (const c of this.clients) {
       if (c.role === 'dashboard') c.sendJson(payload);
+    }
+  }
+
+  closeDashboardSessions(sid = null) {
+    for (const c of Array.from(this.clients)) {
+      if (c.role === 'dashboard') {
+        if (!sid || c.sessionId === sid || (c.meta && c.meta.sid === sid) || !this.store.getSession(c.sessionId)) {
+          c.close(1000, 'Logged out');
+          this._removeClient(c);
+        }
+      }
     }
   }
 

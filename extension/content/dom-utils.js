@@ -124,6 +124,27 @@
     }
   }
 
+  function simulateKeyPress(key, code) {
+    const target = (document.activeElement && document.activeElement !== document.body)
+      ? document.activeElement
+      : (document.body || document.documentElement);
+    if (!target) return;
+    const charCode = key.charCodeAt(0);
+    const eventInit = {
+      key: key,
+      code: code || (key.length === 1 ? `Key${key.toUpperCase()}` : key),
+      keyCode: charCode,
+      which: charCode,
+      charCode: charCode,
+      bubbles: true,
+      cancelable: true,
+      view: window
+    };
+    target.dispatchEvent(new KeyboardEvent('keydown', eventInit));
+    target.dispatchEvent(new KeyboardEvent('keypress', eventInit));
+    target.dispatchEvent(new KeyboardEvent('keyup', eventInit));
+  }
+
   function decodeBase64Files(attachments = []) {
     const dt = new DataTransfer();
     for (const att of attachments) {
@@ -144,6 +165,7 @@
     setNativeInputValue,
     simulateClick,
     cdpClickElement,
+    simulateKeyPress,
     typeOrganic,
     setSafeHtml,
     decodeBase64Files

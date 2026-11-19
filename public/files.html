@@ -19,6 +19,26 @@
   <style>
     .files-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
     @media (max-width: 900px) { .files-grid { grid-template-columns: 1fr; } }
+    .file-item-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--surface-alt);
+    }
+    .preview-box {
+      margin-top: 14px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px;
+      background: var(--surface-alt);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
   </style>
 </head>
 <body>
@@ -44,31 +64,64 @@
   </header>
 
   <main class="files-grid">
+    <!-- Template & Attachment Upload Section -->
     <section style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px">
-      <h1 style="margin:0 0 12px;font-size:17px">Uploaded Attachment Files</h1>
-      <div style="display:flex;gap:8px;margin-bottom:14px">
-        <input id="fileInput" type="file" class="field-input">
-        <button type="button" id="uploadBtn" class="btn btn--primary">Upload</button>
+      <h1 style="margin:0 0 4px;font-size:17px">Template &amp; Attachment Files</h1>
+      <p style="margin:0 0 12px;font-size:12.5px;color:var(--text-muted)">Upload templates, invoices, and documents for GMASS or Relay dispatch.</p>
+      
+      <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
+        <input id="fileInput" type="file" class="field-input" style="flex:1">
+        <button type="button" id="uploadBtn" class="btn btn--primary">Upload File</button>
+      </div>
+
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <strong style="font-size:13px">Stored Files (<span id="storedFilesCount">0</span>)</strong>
       </div>
       <div id="filesList" style="display:flex;flex-direction:column;gap:8px"></div>
     </section>
 
+    <!-- HTML -> PDF / Image Preview Lab -->
     <section style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px">
-      <h2 style="margin:0 0 12px;font-size:17px">Local Playwright HTML → PDF / Image Lab</h2>
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px">
-        <select id="labFormat" class="field-select">
-          <option value="pdf">PDF (A4)</option>
-          <option value="png">PNG</option>
-          <option value="jpeg">JPEG</option>
-          <option value="webp">WEBP</option>
-        </select>
-        <input id="labFilename" class="field-input" type="text" value="invoice_demo" placeholder="Filename">
-        <input id="labWatermark" class="field-input" type="text" placeholder="Watermark (optional)">
+      <h2 style="margin:0 0 4px;font-size:17px">HTML → PDF / PNG Preview Generation</h2>
+      <p style="margin:0 0 12px;font-size:12.5px;color:var(--text-muted)">High-fidelity local headless renderer with watermark support via <code>/api/files/convert</code>.</p>
+      
+      <div style="display:grid;grid-template-columns:1fr 1fr 1.2fr;gap:8px;margin-bottom:10px">
+        <div>
+          <label for="labFormat" style="display:block;font-size:11px;font-weight:700;margin-bottom:3px">Format</label>
+          <select id="labFormat" class="field-select">
+            <option value="pdf">PDF (A4)</option>
+            <option value="png">PNG (Raster Image)</option>
+            <option value="jpeg">JPEG (Photo)</option>
+            <option value="webp">WEBP</option>
+          </select>
+        </div>
+        <div>
+          <label for="labFilename" style="display:block;font-size:11px;font-weight:700;margin-bottom:3px">Output Filename</label>
+          <input id="labFilename" class="field-input" type="text" value="invoice_demo" placeholder="Filename">
+        </div>
+        <div>
+          <label for="labWatermark" style="display:block;font-size:11px;font-weight:700;margin-bottom:3px">Watermark Text</label>
+          <input id="labWatermark" class="field-input" type="text" placeholder="e.g. CONFIDENTIAL">
+        </div>
       </div>
-      <textarea id="labHtml" class="field-textarea" rows="8">&lt;h1 style="color:#4361ee"&gt;Statement Summary&lt;/h1&gt;&lt;p&gt;Generated locally without external APIs.&lt;/p&gt;</textarea>
-      <div style="display:flex;gap:8px;margin-top:10px;align-items:center">
-        <button type="button" id="labConvertBtn" class="btn btn--primary">Convert &amp; Download</button>
+
+      <div>
+        <label for="labHtml" style="display:block;font-size:11px;font-weight:700;margin-bottom:3px">HTML Source</label>
+        <textarea id="labHtml" class="field-textarea" rows="7">&lt;h1 style="color:#4361ee"&gt;Statement Summary&lt;/h1&gt;&lt;p&gt;Generated locally without external APIs.&lt;/p&gt;</textarea>
+      </div>
+
+      <div style="display:flex;gap:8px;margin-top:10px;align-items:center;flex-wrap:wrap">
+        <button type="button" id="labConvertBtn" class="btn btn--primary">Convert &amp; Preview</button>
         <span id="labStatus" style="font-size:12px;color:var(--text-muted)"></span>
+      </div>
+
+      <!-- Preview container -->
+      <div id="previewContainer" class="preview-box" style="display:none">
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+          <strong id="previewTitle" style="font-size:13px">Generated Preview</strong>
+          <a id="downloadPreviewBtn" class="btn btn--sm btn--primary" download="preview">Download Converted File</a>
+        </div>
+        <div id="previewMedia" style="overflow:auto;max-height:420px;border-radius:6px;background:#fff;display:flex;align-items:center;justify-content:center"></div>
       </div>
     </section>
   </main>

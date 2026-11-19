@@ -52,6 +52,7 @@
     const resolveStr = (str) => {
       let s = resolveSpintax(str);
       s = s.replace(/\{[^{}]+\}/g, (tok) => {
+        if (tok === '{random_digit}' || tok === '{digit}') return String(randInt(0, 9));
         if (tok in map) return map[tok];
         const m = tok.match(/^\{\s*(\d+)\s*-\s*(\d+)\s*\}$/);
         if (m) return String(randInt(parseInt(m[1], 10), parseInt(m[2], 10)));

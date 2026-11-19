@@ -97,9 +97,16 @@ function startMockSocks5Server({ username = '', password = '', hostMap = {} } = 
         }
 
         stats.requestedHosts.push(`${host}:${port}`);
-        const mappedHost = hostMap[host] || host;
+        const mappedTarget = hostMap[host] || host;
+        let mappedHost = mappedTarget;
+        let mappedPort = port;
+        if (typeof mappedTarget === 'string' && mappedTarget.includes(':')) {
+          const parts = mappedTarget.split(':');
+          mappedHost = parts[0];
+          mappedPort = Number(parts[1]) || port;
+        }
         stage = 'connecting';
-        remote = net.createConnection({ host: mappedHost, port }, () => {
+        remote = net.createConnection({ host: mappedHost, port: mappedPort }, () => {
           stage = 'tunnel';
           stats.tunnelsOpened += 1;
           client.write(Buffer.from([0x05, 0x00, 0x00, 0x01, 127, 0, 0, 1, 0, 0]));
@@ -150,7 +157,14 @@ function startMockHttpProxy({ username = '', password = '', proxyTag = '', hostM
     stats.authedRequests += 1;
     const targetUrl = new URL(req.url);
     stats.requestedHosts.push(targetUrl.host);
-    const mappedHost = hostMap[targetUrl.hostname] || targetUrl.hostname;
+    const mappedTarget = hostMap[targetUrl.hostname] || targetUrl.hostname;
+    let mappedHost = mappedTarget;
+    let mappedPort = Number(targetUrl.port || 80);
+    if (typeof mappedTarget === 'string' && mappedTarget.includes(':')) {
+      const parts = mappedTarget.split(':');
+      mappedHost = parts[0];
+      mappedPort = Number(parts[1]) || mappedPort;
+    }
     const headers = { ...req.headers };
     delete headers['proxy-authorization'];
     delete headers['proxy-connection'];
@@ -158,7 +172,7 @@ function startMockHttpProxy({ username = '', password = '', proxyTag = '', hostM
 
     const up = http.request({
       host: mappedHost,
-      port: Number(targetUrl.port || 80),
+      port: mappedPort,
       method: req.method,
       path: targetUrl.pathname + targetUrl.search,
       headers
@@ -183,8 +197,15 @@ function startMockHttpProxy({ username = '', password = '', proxyTag = '', hostM
     stats.authedRequests += 1;
     stats.requestedHosts.push(req.url);
     const [host, portStr] = req.url.split(':');
-    const mappedHost = hostMap[host] || host;
-    const remote = net.createConnection({ host: mappedHost, port: Number(portStr || 443) }, () => {
+    const mappedTarget = hostMap[host] || host;
+    let mappedHost = mappedTarget;
+    let mappedPort = Number(portStr || 443);
+    if (typeof mappedTarget === 'string' && mappedTarget.includes(':')) {
+      const parts = mappedTarget.split(':');
+      mappedHost = parts[0];
+      mappedPort = Number(parts[1]) || mappedPort;
+    }
+    const remote = net.createConnection({ host: mappedHost, port: mappedPort }, () => {
       clientSock.write('HTTP/1.1 200 Connection Established\r\n\r\n');
       if (head && head.length) remote.write(head);
       remote.pipe(clientSock);
