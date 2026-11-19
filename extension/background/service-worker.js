@@ -147,14 +147,14 @@ if (chrome.webRequest?.onAuthRequired) {
 async function getSession(keys) {
   try {
     if (chrome.storage?.session) return await chrome.storage.session.get(keys);
-  } catch {}
+  } catch { }
   return chrome.storage.local.get(keys);
 }
 
 async function setSession(obj) {
   try {
     if (chrome.storage?.session) return await chrome.storage.session.set(obj);
-  } catch {}
+  } catch { }
   return chrome.storage.local.set(obj);
 }
 
@@ -175,7 +175,7 @@ async function extractRpaParamsFromUrl(urlStr) {
       else sendRegisterAgent();
       return true;
     }
-  } catch {}
+  } catch { }
   return false;
 }
 
@@ -207,7 +207,7 @@ if (chrome.action?.onClicked) {
       const allWindows = await chrome.windows.getAll({ populate: true }).catch(() => []);
       for (const win of allWindows) {
         if (win.tabs?.some((t) => t.url && (t.url.startsWith(popupUrl) || t.url.includes('popup/popup.html')))) {
-          await chrome.windows.update(win.id, { focused: true }).catch(() => {});
+          await chrome.windows.update(win.id, { focused: true }).catch(() => { });
           return;
         }
       }
@@ -301,7 +301,7 @@ async function connectWebSocket(explicitUrl) {
 
   if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
     if (currentWsUrl === targetUrl) return;
-    try { ws.close(); } catch {}
+    try { ws.close(); } catch { }
     ws = null;
   }
 
@@ -331,7 +331,7 @@ async function connectWebSocket(explicitUrl) {
   };
 
   ws.onerror = () => {
-    try { ws.close(); } catch {}
+    try { ws.close(); } catch { }
   };
 
   ws.onclose = () => {
@@ -518,7 +518,7 @@ async function handleControllerMessage(msg) {
   if (type === 'ABORT_DISPATCH') {
     const tabs = await chrome.tabs.query({ url: ALL_MAIL_URL_PATTERNS });
     for (const t of tabs) {
-      chrome.tabs.sendMessage(t.id, { action: 'ABORT_DISPATCH' }).catch(() => {});
+      chrome.tabs.sendMessage(t.id, { action: 'ABORT_DISPATCH' }).catch(() => { });
     }
     return;
   }
@@ -535,7 +535,7 @@ async function handleControllerMessage(msg) {
       tabs = await chrome.tabs.query({ url: ALL_MAIL_URL_PATTERNS });
     }
     for (const t of tabs) {
-      chrome.tabs.sendMessage(t.id, { action: 'FETCH_FOLDERS' }).catch(() => {});
+      chrome.tabs.sendMessage(t.id, { action: 'FETCH_FOLDERS' }).catch(() => { });
     }
     return;
   }
@@ -547,29 +547,29 @@ async function handleControllerMessage(msg) {
       for (const id of ids) {
         const existing = await chrome.tabs.get(Number(id)).catch(() => null);
         if (existing) {
-          await chrome.tabs.reload(existing.id).catch(() => {});
+          await chrome.tabs.reload(existing.id).catch(() => { });
           reloadedAny = true;
         }
       }
       if (!reloadedAny) {
         const tabs = await chrome.tabs.query({ url: ALL_MAIL_URL_PATTERNS });
-        for (const t of tabs) chrome.tabs.reload(t.id).catch(() => {});
+        for (const t of tabs) chrome.tabs.reload(t.id).catch(() => { });
       }
     } else {
       const tabs = await chrome.tabs.query({ url: ALL_MAIL_URL_PATTERNS });
-      for (const t of tabs) chrome.tabs.reload(t.id).catch(() => {});
+      for (const t of tabs) chrome.tabs.reload(t.id).catch(() => { });
     }
     return;
   }
 
   if (type === 'CLOSE_TAB' && msg.tabId) {
-    chrome.tabs.remove(Number(msg.tabId)).catch(() => {});
+    chrome.tabs.remove(Number(msg.tabId)).catch(() => { });
     return;
   }
 
   if (type === 'CLOSE_WINDOW' || type === 'CLOSE_BROWSER') {
     const wins = await chrome.windows.getAll();
-    for (const w of wins) chrome.windows.remove(w.id).catch(() => {});
+    for (const w of wins) chrome.windows.remove(w.id).catch(() => { });
     return;
   }
 
@@ -701,7 +701,7 @@ function getProviderLoginUrl(provider) {
 }
 
 // ── Tiled Grid Window Opener & Tab Controls ──────────────────────────────────
-async function openTabsGrid({ count, provider = 'gmail', accounts = [], hGap = 15, vGap = 15, hVal, vVal, stagger = false, layout, screenWidth, screenHeight, startUrls = [], baseX = 0, baseY = 0 }) {
+async function openTabsGrid({ count, provider = 'gmail', accounts = [], hGap = 15, vGap = 15, hVal, vVal, stagger = true, layout, screenWidth, screenHeight, startUrls = [], baseX = 0, baseY = 0 }) {
   const n = Math.max(1, Math.min(20, Number(count || 1)));
   const hPercent = Math.max(10, Math.min(100, Number(hVal ?? hGap ?? 20)));
   const vPercent = Math.max(10, Math.min(100, Number(vVal ?? vGap ?? 20)));
@@ -716,7 +716,7 @@ async function openTabsGrid({ count, provider = 'gmail', accounts = [], hGap = 1
   // Map H and V sliders to proportional screen percentage dimensions (e.g. width = Math.round(availW * (hVal/100)), height = Math.round(availH * (vVal/100)))
   const w = Math.max(240, Math.min(availW, Math.round(availW * (hPercent / 100))));
   const h = Math.max(240, Math.min(availH, Math.round(availH * (vPercent / 100))));
-  const isStagger = Boolean(stagger || layout === 'stagger');
+  const isStagger = (layout === 'tile' || layout === 'grid' || stagger === false) ? false : Boolean(stagger || layout === 'stagger');
   const opened = [];
 
   for (let i = 0; i < n; i++) {
@@ -833,17 +833,18 @@ async function processLoginQueueTick() {
     if (item) {
       const acc = item.account;
       if (acc.proxy) {
-        await applyStandaloneProxy(acc.proxy).catch(() => {});
+        await applyStandaloneProxy(acc.proxy).catch(() => { });
       }
       if (item.targetTabId) {
         const pending = ses.pendingLogins || {};
         pending[item.targetTabId] = acc;
         await setSession({ pendingLogins: pending });
-        await chrome.tabs.update(item.targetTabId, { url: getProviderLoginUrl(acc.provider || 'gmail') }).catch(() => {});
+        await chrome.tabs.update(item.targetTabId, { url: getProviderLoginUrl(acc.provider || 'gmail') }).catch(() => { });
       } else {
         await openTabsGrid({
           count: 1,
           provider: acc.provider || 'gmail',
+          stagger: true,
           accounts: [acc],
           hGap: q.hGap,
           vGap: q.vGap
@@ -919,7 +920,7 @@ async function recordVerificationStatus(payload) {
     severity: statuses[email].severity,
     code: statuses[email].code
   });
-  chrome.runtime.sendMessage({ action: 'VERIFICATION_STATUS_UPDATE', statuses }).catch(() => {});
+  chrome.runtime.sendMessage({ action: 'VERIFICATION_STATUS_UPDATE', statuses }).catch(() => { });
 }
 
 // ── Runtime Message Router (Popup + Content Scripts) ─────────────────────────
@@ -1028,7 +1029,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
           const vs = ses.verificationStatuses || {};
           delete vs[String(resolvedEmail).trim().toLowerCase()];
           await setSession({ tabEmails: te, verificationStatuses: vs, tabLiveInfo: liveInfo });
-          chrome.runtime.sendMessage({ action: 'VERIFICATION_STATUS_UPDATE', statuses: vs }).catch(() => {});
+          chrome.runtime.sendMessage({ action: 'VERIFICATION_STATUS_UPDATE', statuses: vs }).catch(() => { });
         } else if (tabId) {
           await setSession({ tabLiveInfo: liveInfo });
         }
@@ -1174,7 +1175,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         });
         let closed = false;
         if (settings.closeOnCaptcha && !settings.disableTabCloseOnError && tabId) {
-          await chrome.tabs.remove(tabId).catch(() => {});
+          await chrome.tabs.remove(tabId).catch(() => { });
           closed = true;
         }
         return sendResponse({ ok: true, settings, closed });
@@ -1195,7 +1196,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
           const vs = ses.verificationStatuses || {};
           delete vs[String(msg.email).trim().toLowerCase()];
           await setSession({ verificationStatuses: vs });
-          chrome.runtime.sendMessage({ action: 'VERIFICATION_STATUS_UPDATE', statuses: vs }).catch(() => {});
+          chrome.runtime.sendMessage({ action: 'VERIFICATION_STATUS_UPDATE', statuses: vs }).catch(() => { });
         }
         return sendResponse({ ok: true });
       }
@@ -1287,18 +1288,18 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       }
 
       case 'FOCUS_TAB': {
-        if (msg.windowId) await chrome.windows.update(Number(msg.windowId), { focused: true }).catch(() => {});
-        if (msg.tabId) await chrome.tabs.update(Number(msg.tabId), { active: true }).catch(() => {});
+        if (msg.windowId) await chrome.windows.update(Number(msg.windowId), { focused: true }).catch(() => { });
+        if (msg.tabId) await chrome.tabs.update(Number(msg.tabId), { active: true }).catch(() => { });
         return sendResponse({ ok: true });
       }
 
       case 'RELOAD_TAB': {
-        if (msg.tabId) await chrome.tabs.reload(Number(msg.tabId)).catch(() => {});
+        if (msg.tabId) await chrome.tabs.reload(Number(msg.tabId)).catch(() => { });
         return sendResponse({ ok: true });
       }
 
       case 'CLOSE_TAB': {
-        if (msg.tabId) await chrome.tabs.remove(Number(msg.tabId)).catch(() => {});
+        if (msg.tabId) await chrome.tabs.remove(Number(msg.tabId)).catch(() => { });
         return sendResponse({ ok: true });
       }
 
@@ -1309,7 +1310,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
           if (tab?.windowId) winId = tab.windowId;
         }
         if (winId) {
-          await chrome.windows.update(winId, { state: 'maximized', focused: true }).catch(() => {});
+          await chrome.windows.update(winId, { state: 'maximized', focused: true }).catch(() => { });
         }
         return sendResponse({ ok: true, windowId: winId });
       }
@@ -1439,8 +1440,8 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
             width: w,
             height: h,
             focused: i === 0
-          }).catch(() => {});
-          await chrome.tabs.move(item.tab.id, { index: i }).catch(() => {});
+          }).catch(() => { });
+          await chrome.tabs.move(item.tab.id, { index: i }).catch(() => { });
         }
 
         return sendResponse({ ok: true, reordered: count });
@@ -1451,7 +1452,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         const mailTabs = tabs.filter((t) =>
           /mail\.google\.com|accounts\.google\.com|outlook\.(live|office|office365)\.com|login\.live\.com|login\.microsoftonline\.com|mail\.yahoo\.com|login\.yahoo\.com/i.test(t.url || '')
         );
-        await Promise.all(mailTabs.map((t) => chrome.tabs.reload(t.id).catch(() => {})));
+        await Promise.all(mailTabs.map((t) => chrome.tabs.reload(t.id).catch(() => { })));
         return sendResponse({ ok: true, reloaded: mailTabs.length });
       }
 
@@ -1459,7 +1460,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         const tabs = await chrome.tabs.query({}).catch(() => []);
         for (const t of tabs) {
           if (/google|outlook|yahoo|live\.com|microsoftonline/i.test(t.url || '')) {
-            await chrome.tabs.remove(t.id).catch(() => {});
+            await chrome.tabs.remove(t.id).catch(() => { });
           }
         }
         return sendResponse({ ok: true });
@@ -1479,7 +1480,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
             const host = String(c.domain || domain).replace(/^\./, '');
             const url = `${proto}://${host}${c.path || '/'}`;
             removed += 1;
-            return chrome.cookies.remove({ url, name: c.name }).catch(() => {});
+            return chrome.cookies.remove({ url, name: c.name }).catch(() => { });
           }));
         }
 
@@ -1496,13 +1497,13 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
             targetLoginUrl = 'https://login.yahoo.com/';
           }
           if (targetLoginUrl) {
-            await chrome.tabs.update(t.id, { url: targetLoginUrl }).catch(() => {});
+            await chrome.tabs.update(t.id, { url: targetLoginUrl }).catch(() => { });
             redirected += 1;
           }
         }
 
         await setSession({ pendingLogins: {}, tabEmails: {}, verificationStatuses: {} });
-        chrome.runtime.sendMessage({ action: 'VERIFICATION_STATUS_UPDATE', statuses: {} }).catch(() => {});
+        chrome.runtime.sendMessage({ action: 'VERIFICATION_STATUS_UPDATE', statuses: {} }).catch(() => { });
 
         return sendResponse({ ok: true, removed, redirected });
       }
@@ -1548,7 +1549,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         return sendResponse({ ok: false, error: 'Unknown action' });
     }
   })().catch((err) => {
-    try { sendResponse({ ok: false, error: err.message }); } catch {}
+    try { sendResponse({ ok: false, error: err.message }); } catch { }
   });
   return true; // keep channel open for async response
 });
