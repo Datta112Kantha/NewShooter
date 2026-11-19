@@ -544,8 +544,13 @@ test('E2E Extension Core Fixes: CDP single-char typing, Captcha wait/resume + cl
     await extPopup.waitForSelector('#loginIds .gid-err-fatal .error-tag', { timeout: 5000 });
     assert.match(await extPopup.locator('#loginIds .error-tag').innerText(), /Wrong password/);
 
-    const gridA = await extPopup.evaluate(() => chrome.runtime.sendMessage({ action: 'OPEN_TABS_GRID', count: 4, hGap: 10, vGap: 10, startUrls: ['about:blank', 'about:blank', 'about:blank', 'about:blank'] }));
-    const gridB = await extPopup.evaluate(() => chrome.runtime.sendMessage({ action: 'OPEN_TABS_GRID', count: 4, hGap: 80, vGap: 80, startUrls: ['about:blank', 'about:blank', 'about:blank', 'about:blank'] }));
+    // Default behavior is now stagger mode
+    const gridDef = await extPopup.evaluate(() => chrome.runtime.sendMessage({ action: 'OPEN_TABS_GRID', count: 3, startUrls: ['about:blank', 'about:blank', 'about:blank'] }));
+    assert.equal(gridDef.opened[1].left - gridDef.opened[0].left, 36, 'Expected default OPEN_TABS_GRID to open in diagonal stagger mode (36px offset)');
+
+    // Explicit tile layout tests grid gap calculations
+    const gridA = await extPopup.evaluate(() => chrome.runtime.sendMessage({ action: 'OPEN_TABS_GRID', count: 4, layout: 'tile', stagger: false, hGap: 10, vGap: 10, startUrls: ['about:blank', 'about:blank', 'about:blank', 'about:blank'] }));
+    const gridB = await extPopup.evaluate(() => chrome.runtime.sendMessage({ action: 'OPEN_TABS_GRID', count: 4, layout: 'tile', stagger: false, hGap: 80, vGap: 80, startUrls: ['about:blank', 'about:blank', 'about:blank', 'about:blank'] }));
     assert.ok(gridB.opened[1].left > gridA.opened[1].left, 'Expected larger hGap to shift column 2 window left offset');
     assert.ok(gridB.opened[2].top > gridA.opened[2].top, 'Expected larger vGap to shift row 2 window top offset');
   } finally {
